@@ -112,17 +112,6 @@ export class ActionExecutor {
     el.dispatchEvent(new MouseEvent('mouseup', opts));
     el.click();
 
-    // If button is inside form, trigger form submit event
-    if (el instanceof HTMLButtonElement && el.form) {
-      if (typeof el.form.requestSubmit === 'function') {
-        try {
-          el.form.requestSubmit(el);
-        } catch {
-          // Ignore if already submitted
-        }
-      }
-    }
-
     await this.sleep(500);
     DeepSemanticCrawler.clearHighlight();
 
