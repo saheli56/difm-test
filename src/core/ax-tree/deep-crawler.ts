@@ -92,14 +92,20 @@ export class DeepSemanticCrawler {
     // Tier 0: Specialized Search Field Heuristics
     if (semanticName && (semanticName.toLowerCase().includes('search') || targetRole === 'textbox')) {
       const searchInputs = [
+        '#twotabsearchtextbox',
+        'input[name="field-keywords"]',
+        'input#nav-search-keywords',
         '#searchInput',
+        'input[name="q"]',
         'input[type="search"]',
         'input[name="search"]',
-        'input[name="q"]',
+        'input[name="search_query"]',
         'input[aria-label*="search" i]',
         'input[placeholder*="search" i]',
+        'input[placeholder*="Search" i]',
         'form[role="search"] input',
-        '.cdx-text-input__input'
+        '.cdx-text-input__input',
+        'input[title*="Search" i]'
       ];
       if (targetRole === 'textbox' || !targetRole) {
         for (const s of searchInputs) {
@@ -110,11 +116,17 @@ export class DeepSemanticCrawler {
 
       if (targetRole === 'button' || semanticName.toLowerCase().includes('search button') || semanticName.toLowerCase().includes('submit')) {
         const searchButtons = [
+          '#nav-search-submit-button',
+          'input#nav-search-submit-button',
+          'input.nav-input[type="submit"]',
           'button[type="submit"]',
+          'input[type="submit"]',
           'button.searchButton',
           'button.pure-button',
           'button[aria-label*="search" i]',
-          '.cdx-search-input__end-button'
+          'button[aria-label*="Search" i]',
+          '.cdx-search-input__end-button',
+          '#search-icon-legacy'
         ];
         for (const s of searchButtons) {
           const el = document.querySelector(s) as HTMLElement;

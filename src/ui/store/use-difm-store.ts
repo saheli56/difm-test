@@ -190,12 +190,24 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
 
 async function findActiveWebTab(): Promise<chrome.tabs.Tab | null> {
   if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return null;
-  const tabs = await chrome.tabs.query({ active: true });
-  const webTab = tabs.find((t) => t.url && t.url.startsWith('http') && !t.url.includes('extension://'));
-  if (webTab) return webTab;
+  
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab?.url && tab.url.startsWith('http') && !tab.url.includes('extension://')) return tab;
+  } catch {}
 
-  const allTabs = await chrome.tabs.query({});
-  return allTabs.find((t) => t.active && t.url && t.url.startsWith('http')) || allTabs.find((t) => t.url && t.url.startsWith('http')) || null;
+  try {
+    const tabs = await chrome.tabs.query({ active: true });
+    const webTab = tabs.find((t) => t.url && t.url.startsWith('http') && !t.url.includes('extension://'));
+    if (webTab) return webTab;
+  } catch {}
+
+  try {
+    const allTabs = await chrome.tabs.query({});
+    return allTabs.find((t) => t.active && t.url && t.url.startsWith('http')) || allTabs.find((t) => t.url && t.url.startsWith('http')) || null;
+  } catch {}
+
+  return null;
 }
 
 async function executeStepInActiveTab(step: WorkflowStep): Promise<{
@@ -219,53 +231,120 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
         type: 'DIFM_EXECUTE_ACTION_IN_TAB',
         payload: { step }
       });
-      if (response) return response;
+      if (response && response.success) return response;
     } catch {
-      // Direct in-tab scripted execution fallback
-      if (chrome.scripting) {
-        try {
-          const results = await chrome.scripting.executeScript({
-            target: { tabId: activeTab.id },
-            func: (s) => {
-              const searchInput = document.querySelector(
-                '#searchInput, input[type="search"], input[name="search"], input[name="q"], [aria-label*="search" i], [placeholder*="search" i]'
-              ) as HTMLInputElement | null;
+      // Fall through to scripting
+    }
 
-              if (s.action === 'type' && searchInput) {
-                searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                searchInput.focus();
-                searchInput.value = s.value || '';
-                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-                searchInput.dispatchEvent(new Event('change', { bubbles: true }));
-                searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    if (chrome.scripting) {
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: activeTab.id },
+          func: (s) => {
+            const searchInputs = [
+              '#twotabsearchtextbox',
+              'input[name="field-keywords"]',
+              'input#nav-search-keywords',
+              '#searchInput',
+              'input[name="q"]',
+              'input[type="search"]',
+              'input[name="search"]',
+              'input[name="search_query"]',
+              'input[aria-label*="search" i]',
+              'input[placeholder*="search" i]',
+              'input[placeholder*="Search" i]',
+              'form[role="search"] input',
+              '.cdx-text-input__input'
+            ];
+
+            const searchButtons = [
+              '#nav-search-submit-button',
+              'input#nav-search-submit-button',
+              'input.nav-input[type="submit"]',
+              'button[type="submit"]',
+              'input[type="submit"]',
+              'button.searchButton',
+              'button.pure-button',
+              'button[aria-label*="search" i]',
+              'button[aria-label*="Search" i]',
+              '.cdx-search-input__end-button',
+              '#search-icon-legacy'
+            ];
+
+            if (s.action === 'type') {
+              let inputEl: HTMLInputElement | null = null;
+              for (const selector of searchInputs) {
+                const el = document.querySelector(selector) as HTMLInputElement | null;
+                if (el && el.offsetParent !== null) {
+                  inputEl = el;
+                  break;
+                }
+              }
+
+              if (!inputEl) {
+                inputEl = document.querySelector('input:not([type="hidden"])') as HTMLInputElement | null;
+              }
+
+              if (inputEl) {
+                inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                inputEl.focus();
+                
+                const val = s.value || '';
+                const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                if (nativeSetter) {
+                  nativeSetter.call(inputEl, val);
+                } else {
+                  inputEl.value = val;
+                }
+
+                inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+                return { success: true };
+              }
+              return { success: false, error: 'Could not locate input search box on page.' };
+            }
+
+            if (s.action === 'click') {
+              let btnEl: HTMLElement | null = null;
+              for (const selector of searchButtons) {
+                const el = document.querySelector(selector) as HTMLElement | null;
+                if (el && el.offsetParent !== null) {
+                  btnEl = el;
+                  break;
+                }
+              }
+
+              if (btnEl) {
+                btnEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                btnEl.click();
                 return { success: true };
               }
 
-              if (s.action === 'click') {
-                const searchButton = document.querySelector(
-                  'button[type="submit"], button.searchButton, button.pure-button, .cdx-search-input__end-button'
-                ) as HTMLElement | null;
-                if (searchButton) {
-                  searchButton.click();
-                  return { success: true };
-                }
-                if (searchInput && searchInput.form) {
-                  searchInput.form.submit();
+              for (const selector of searchInputs) {
+                const input = document.querySelector(selector) as HTMLInputElement | null;
+                if (input && input.form) {
+                  if (typeof input.form.requestSubmit === 'function') {
+                    input.form.requestSubmit();
+                  } else {
+                    input.form.submit();
+                  }
                   return { success: true };
                 }
               }
 
               return { success: true };
-            },
-            args: [step]
-          });
+            }
 
-          if (results?.[0]?.result) {
-            return results[0].result as any;
-          }
-        } catch (e: any) {
-          return { success: false, error: e.message || 'Scripting execution failed' };
+            return { success: true };
+          },
+          args: [step]
+        });
+
+        if (results?.[0]?.result) {
+          return results[0].result as any;
         }
+      } catch (e: any) {
+        return { success: false, error: e.message || 'Scripting execution failed' };
       }
     }
   }
