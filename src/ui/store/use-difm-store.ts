@@ -470,8 +470,11 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
                   finalTarget.focus();
                   finalTarget.dispatchEvent(new PointerEvent('pointerup', opts));
                   finalTarget.dispatchEvent(new MouseEvent('mouseup', opts));
-                  finalTarget.dispatchEvent(new MouseEvent('click', opts));
-                  if (typeof finalTarget.click === 'function') finalTarget.click();
+                  if (typeof finalTarget.click === 'function') {
+                    finalTarget.click();
+                  } else {
+                    finalTarget.dispatchEvent(new MouseEvent('click', opts));
+                  }
                   return { success: true, clickedCart: true };
                 }
               }
