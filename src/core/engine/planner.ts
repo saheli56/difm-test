@@ -73,7 +73,78 @@ export class TaskPlanner {
       });
     }
 
-    // Case 0: Search / Lookup (e.g. "search about superman", "search for iphone", "find articles on quantum")
+    // Case 0A: Composite Search + Conditional Add to Cart / Price Filter
+    // e.g. "search for sony xm5 headphones and to cart if price is below 50000"
+    if (
+      (lower.includes('search') || lower.includes('find')) &&
+      (lower.includes('cart') || lower.includes('buy'))
+    ) {
+      const searchMatch = prompt.match(/(?:search\s*(?:for|about)?|find)\s+([a-zA-Z0-9\s-]+?)(?:\s+and\s+(?:add\s+)?to\s+cart|\s+and\s+buy|\s+if\s+price|$)/i);
+      const query = searchMatch ? searchMatch[1].trim() : 'item';
+
+      const priceMatch = prompt.match(/(?:below|under|less than|<)\s*[$₹€£]?\s*([0-9,]+)/i);
+      const targetPrice = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : null;
+
+      steps.push({
+        id: 'step-comp-1',
+        action: 'type',
+        description: `Type "${query}" into search box`,
+        targetSemanticName: 'search',
+        targetSemanticRole: 'textbox',
+        value: query,
+        status: 'pending'
+      });
+
+      steps.push({
+        id: 'step-comp-2',
+        action: 'click',
+        description: 'Submit search query',
+        targetSemanticName: 'search',
+        targetSemanticRole: 'button',
+        status: 'pending'
+      });
+
+      steps.push({
+        id: 'step-comp-3',
+        action: 'wait_for',
+        description: `Wait for search results for "${query}"`,
+        status: 'pending'
+      });
+
+      if (targetPrice !== null) {
+        steps.push({
+          id: 'step-comp-4',
+          action: 'verify_condition',
+          description: `Verify price is below ₹${targetPrice.toLocaleString()}`,
+          condition: {
+            type: 'price_below',
+            expected: targetPrice
+          },
+          status: 'pending'
+        });
+      }
+
+      steps.push({
+        id: 'step-comp-5',
+        action: 'click',
+        description: 'Click "Add to Cart"',
+        targetSemanticName: 'add to cart',
+        targetSemanticRole: 'button',
+        status: 'pending'
+      });
+
+      steps.push({
+        id: 'step-comp-6',
+        action: 'checkpoint_approval',
+        description: 'Item matched price condition. Authorize checkout & final payment',
+        requiresApproval: true,
+        status: 'pending'
+      });
+
+      return steps;
+    }
+
+    // Case 0B: Simple Search / Lookup (e.g. "search about superman", "find articles on quantum")
     if (
       lower.startsWith('search') ||
       lower.startsWith('find') ||

@@ -304,7 +304,42 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
               return { success: false, error: 'Could not locate input search box on page.' };
             }
 
+            const addToCartButtons = [
+              '#add-to-cart-button',
+              'input#add-to-cart-button',
+              'input[name="submit.add-to-cart"]',
+              'button[name="submit.add-to-cart"]',
+              '#buy-now-button',
+              'input#buy-now-button',
+              '[data-action="add-to-cart"]',
+              '.a-button-input[value="Add to Cart"]',
+              'button[aria-label*="Add to cart" i]',
+              'button[title*="Add to cart" i]'
+            ];
+
             if (s.action === 'click') {
+              // If Add to Cart action
+              if (s.targetSemanticName?.toLowerCase().includes('cart')) {
+                for (const selector of addToCartButtons) {
+                  const el = document.querySelector(selector) as HTMLElement | null;
+                  if (el && el.offsetParent !== null) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.click();
+                    return { success: true };
+                  }
+                }
+
+                // If on search results page, click first product result
+                const firstProduct = document.querySelector(
+                  '[data-component-type="s-search-result"] h2 a, .s-product-image-container a, a.a-link-normal.s-no-outline'
+                ) as HTMLElement | null;
+                if (firstProduct) {
+                  firstProduct.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  firstProduct.click();
+                  return { success: true };
+                }
+              }
+
               let btnEl: HTMLElement | null = null;
               for (const selector of searchButtons) {
                 const el = document.querySelector(selector) as HTMLElement | null;
