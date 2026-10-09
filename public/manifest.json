@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Do It For Me (DIFM) - Agentic Browser Automation",
+  "version": "1.0.0",
+  "description": "Autonomous, privacy-first background browser agent with natural language commands, reactive HITL checkpoints, and recurring macros.",
+  "permissions": [
+    "alarms",
+    "storage",
+    "activeTab",
+    "scripting",
+    "sidePanel",
+    "tabs",
+    "notifications"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Do It For Me"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+U",
+        "mac": "Command+Shift+U"
+      },
+      "description": "Open Do It For Me Popup"
+    },
+    "toggle-difm-hud": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Toggle DIFM Spotlight Command Palette"
+    }
+  }
+}
