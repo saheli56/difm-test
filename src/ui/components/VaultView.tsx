@@ -6,8 +6,7 @@ import {
   IdentificationCard, 
   Sliders, 
   Note, 
-  Check,
-  ShieldCheck
+  Check
 } from '@phosphor-icons/react';
 import { useDIFMStore } from '../store/use-difm-store';
 import { VaultItem } from '../../core/types';
@@ -51,7 +50,7 @@ export const VaultView: React.FC = () => {
       case 'note':
         return <Note size={14} className="text-amber-400" />;
       default:
-        return <ShieldCheck size={14} className="text-emerald-400" />;
+        return <IdentificationCard size={14} className="text-emerald-400" />;
     }
   };
 
@@ -61,7 +60,7 @@ export const VaultView: React.FC = () => {
         <div className="flex flex-col">
           <h3 className="text-xs font-semibold text-zinc-100 flex items-center gap-1.5">
             <span>Context Vault & Notes</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 rounded">
+            <span className="text-[10px] px-1.5 py-0.2 bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 rounded font-medium">
               Encrypted Local
             </span>
           </h3>
@@ -95,7 +94,7 @@ export const VaultView: React.FC = () => {
               value={key}
               onChange={(e) => setKey(e.target.value)}
               placeholder="KEY_NAME (e.g. CESC_ID)"
-              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 font-mono uppercase focus:outline-none"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 uppercase focus:outline-none"
               required
             />
             <select
@@ -136,7 +135,7 @@ export const VaultView: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 {getCategoryIcon(item.category)}
-                <span className="font-mono text-xs font-semibold text-zinc-200">
+                <span className="text-xs font-semibold text-zinc-200 tracking-tight">
                   {item.key}
                 </span>
               </div>
@@ -162,7 +161,7 @@ export const VaultView: React.FC = () => {
               </div>
             </div>
 
-            <p className="text-xs text-zinc-300 font-mono bg-zinc-950/60 p-1.5 rounded border border-zinc-800/40 break-all select-text">
+            <p className="text-xs text-zinc-300 bg-zinc-950/60 p-1.5 rounded border border-zinc-800/40 break-all select-text">
               {item.value}
             </p>
           </div>

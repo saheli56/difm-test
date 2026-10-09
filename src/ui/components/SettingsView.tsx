@@ -125,7 +125,7 @@ export const SettingsView: React.FC = () => {
               value={settings.apiKey || ''}
               onChange={(e) => updateSettings({ apiKey: e.target.value })}
               placeholder="sk-..."
-              className="bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-100 font-mono focus:outline-none"
+              className="bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none"
             />
           </div>
         )}
@@ -183,7 +183,7 @@ export const SettingsView: React.FC = () => {
             updateSettings({ webhookUrl: e.target.value });
           }}
           placeholder="https://discord.com/api/webhooks/... or Telegram endpoint"
-          className="bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-100 font-mono focus:outline-none"
+          className="bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none"
         />
         <span className="text-[10px] text-zinc-500">
           DIFM dispatches background task results and price drop triggers to this webhook.

@@ -209,7 +209,7 @@ export const AutomationsView: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-zinc-800/60 text-[10px] text-zinc-400 font-mono">
+            <div className="flex items-center justify-between pt-2 border-t border-zinc-800/60 text-[10px] text-zinc-400">
               <div className="flex items-center gap-1">
                 {auto.schedule.type === 'monthly_day' ? (
                   <>

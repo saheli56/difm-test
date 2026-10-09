@@ -114,7 +114,7 @@ export class VisualMacroRecorder {
     badge.style.left = '0';
     badge.style.backgroundColor = '#059669';
     badge.style.color = '#ffffff';
-    badge.style.fontFamily = 'monospace';
+    badge.style.fontFamily = 'inherit';
     badge.style.fontSize = '10px';
     badge.style.padding = '1px 5px';
     badge.style.borderRadius = '3px';

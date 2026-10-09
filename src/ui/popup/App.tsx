@@ -45,7 +45,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-[10px] font-mono text-zinc-400">
+          <div className="flex items-center gap-1 text-[10px] font-medium text-zinc-400">
             <Circle size={7} weight="fill" className={isExecuting ? 'text-amber-400 animate-pulse' : 'text-emerald-400'} />
             <span>{isExecuting ? 'Busy' : 'Ready'}</span>
           </div>
@@ -83,7 +83,7 @@ export const App: React.FC = () => {
         <div className="bg-zinc-900/80 border border-zinc-800 rounded-lg p-2.5 flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-zinc-200 truncate">{currentWorkflow.title}</span>
-            <span className="text-[10px] font-mono text-zinc-400 capitalize">{currentWorkflow.status}</span>
+            <span className="text-[10px] font-medium text-zinc-400 capitalize">{currentWorkflow.status}</span>
           </div>
           <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
             <div
@@ -117,7 +117,7 @@ export const App: React.FC = () => {
             >
               <div className="flex flex-col min-w-0 pr-2">
                 <span className="font-medium text-zinc-200 truncate">{auto.title}</span>
-                <span className="text-[10px] text-zinc-500 font-mono">
+                <span className="text-[10px] text-zinc-500">
                   {auto.schedule.type === 'monthly_day' ? `Day ${auto.schedule.dayOfMonth} monthly` : `${auto.schedule.intervalMinutes}m interval`}
                 </span>
               </div>

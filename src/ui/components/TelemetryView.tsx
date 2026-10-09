@@ -5,7 +5,6 @@ import {
   ArrowClockwise, 
   CheckCircle, 
   XCircle, 
-  WarningCircle, 
   ShieldWarning, 
   LockKey, 
   CreditCard,
@@ -32,8 +31,7 @@ export const TelemetryView: React.FC = () => {
     abortWorkflow,
     resumeHitl,
     retryStep,
-    saveAutomation,
-    vault
+    saveAutomation
   } = useDIFMStore();
 
   const handleExecute = (e: React.FormEvent) => {
@@ -171,7 +169,7 @@ export const TelemetryView: React.FC = () => {
               )}
             </div>
             <div className="flex flex-col gap-0.5 flex-1">
-              <span className="text-xs font-semibold text-rose-200 uppercase tracking-wider font-mono">
+              <span className="text-xs font-semibold text-rose-200 uppercase tracking-wider">
                 {currentWorkflow.hitlCheckpoint.reason.replace('_', ' ')}
               </span>
               <p className="text-xs text-zinc-200 leading-relaxed">
@@ -219,7 +217,7 @@ export const TelemetryView: React.FC = () => {
               <span className="text-xs font-semibold text-zinc-200 truncate max-w-[200px]">
                 {currentWorkflow.title}
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
                 {currentWorkflow.steps.length} Steps
               </span>
             </div>
@@ -266,12 +264,12 @@ export const TelemetryView: React.FC = () => {
                       )}
                     </div>
                     {step.value && (
-                      <span className="font-mono text-[10px] text-zinc-400 truncate bg-zinc-950/50 px-1.5 py-0.5 rounded border border-zinc-800 w-fit">
+                      <span className="text-[10px] text-zinc-400 truncate bg-zinc-950/50 px-1.5 py-0.5 rounded border border-zinc-800 w-fit font-medium">
                         Value: "{step.value}"
                       </span>
                     )}
                     {step.errorMessage && (
-                      <span className="text-[10px] text-rose-400 mt-0.5 font-mono">
+                      <span className="text-[10px] text-rose-400 mt-0.5">
                         Error: {step.errorMessage}
                       </span>
                     )}
@@ -296,7 +294,7 @@ export const TelemetryView: React.FC = () => {
         <div className="border border-zinc-800 rounded-lg bg-zinc-950 overflow-hidden">
           <button
             onClick={() => setShowLogs(!showLogs)}
-            className="w-full px-3 py-2 bg-zinc-900/60 hover:bg-zinc-900 flex items-center justify-between text-xs text-zinc-400 font-mono transition-colors"
+            className="w-full px-3 py-2 bg-zinc-900/60 hover:bg-zinc-900 flex items-center justify-between text-xs text-zinc-400 font-medium transition-colors"
           >
             <div className="flex items-center gap-1.5">
               <TerminalWindow size={14} />
@@ -306,7 +304,7 @@ export const TelemetryView: React.FC = () => {
           </button>
 
           {showLogs && (
-            <div className="p-2.5 max-h-48 overflow-y-auto font-mono text-[10px] flex flex-col gap-1 border-t border-zinc-800/80 bg-zinc-950">
+            <div className="p-2.5 max-h-48 overflow-y-auto text-[10px] flex flex-col gap-1 border-t border-zinc-800/80 bg-zinc-950">
               {currentWorkflow.executionLogs.map((log) => (
                 <div key={log.id} className="flex items-start gap-1.5">
                   <span className="text-zinc-600 shrink-0">

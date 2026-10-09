@@ -150,7 +150,7 @@ export class SemanticCrawler {
       badge.style.left = '0';
       badge.style.backgroundColor = '#2563eb';
       badge.style.color = '#ffffff';
-      badge.style.fontFamily = 'monospace';
+      badge.style.fontFamily = 'inherit';
       badge.style.fontSize = '11px';
       badge.style.fontWeight = '600';
       badge.style.padding = '2px 6px';

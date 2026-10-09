@@ -37,7 +37,7 @@ export const Header: React.FC = () => {
           <div className="flex flex-col">
             <span className="text-xs font-semibold tracking-tight text-zinc-100 flex items-center gap-1.5">
               Do It For Me
-              <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800/70 border border-zinc-700/50 rounded text-zinc-400 font-mono">
+              <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800/70 border border-zinc-700/50 rounded text-zinc-400 font-medium">
                 v1.0
               </span>
             </span>
@@ -45,7 +45,7 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-900/90 border border-zinc-800 text-[11px] text-zinc-300 font-mono max-w-[150px] truncate">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-900/90 border border-zinc-800 text-[11px] text-zinc-300 font-medium max-w-[150px] truncate">
             <Globe size={13} className="text-zinc-500 shrink-0" weight="bold" />
             <span className="truncate">{getDomain(activeTabInfo.url)}</span>
           </div>
@@ -62,7 +62,7 @@ export const Header: React.FC = () => {
                   : 'text-emerald-400'
               } 
             />
-            <span className="text-zinc-300 capitalize text-[10px] font-mono">
+            <span className="text-zinc-300 capitalize text-[10px] font-medium">
               {currentWorkflow?.status === 'paused_hitl' ? 'HITL Pause' : isExecuting ? 'Running' : 'Ready'}
             </span>
           </div>
