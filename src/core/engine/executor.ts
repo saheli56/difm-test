@@ -1,5 +1,5 @@
-import { WorkflowStep, StepCondition } from '../types';
-import { SemanticCrawler } from '../ax-tree/crawler';
+import { WorkflowStep } from '../types';
+import { DeepSemanticCrawler } from '../ax-tree/deep-crawler';
 import { ReactiveGuard } from './reactive-guard';
 
 export class ActionExecutor {
@@ -12,7 +12,7 @@ export class ActionExecutor {
   }> {
     try {
       // 1. Pre-execution barrier inspection
-      const nodes = SemanticCrawler.extractInteractiveNodes();
+      const nodes = DeepSemanticCrawler.extractDeepInteractiveNodes();
       const barrier = ReactiveGuard.inspectPageBarriers(nodes);
       if (barrier) {
         return {
@@ -25,14 +25,6 @@ export class ActionExecutor {
       switch (step.action) {
         case 'navigate':
           if (step.value) {
-            if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.update) {
-              const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-              if (tabs[0]?.id) {
-                await chrome.tabs.update(tabs[0].id, { url: step.value });
-                await this.sleep(1500);
-                return { success: true };
-              }
-            }
             window.location.href = step.value;
             await this.sleep(1500);
             return { success: true };
@@ -73,13 +65,24 @@ export class ActionExecutor {
   }
 
   private static async performClick(step: WorkflowStep): Promise<{ success: boolean; error?: string }> {
-    const el = SemanticCrawler.findTargetElement(
+    const el = DeepSemanticCrawler.findSelfHealingElement(
       step.targetNodeSelector,
       step.targetNodeXPath,
-      step.targetSemanticName
+      step.targetSemanticName,
+      step.targetSemanticRole || 'button'
     );
 
     if (!el) {
+      // If click target not found but action was search submit, check if active element can be submitted
+      const activeEl = document.activeElement as HTMLInputElement;
+      if (activeEl && activeEl.form) {
+        activeEl.form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        if (typeof activeEl.form.requestSubmit === 'function') {
+          activeEl.form.requestSubmit();
+        }
+        return { success: true };
+      }
+
       return {
         success: false,
         error: `Could not locate clickable element "${step.targetSemanticName || step.targetNodeSelector}" on page.`
@@ -87,10 +90,9 @@ export class ActionExecutor {
     }
 
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    SemanticCrawler.highlightElement(el, 'CLICKING');
-    await this.sleep(300);
+    DeepSemanticCrawler.highlightElement(el, 'CLICK');
+    await this.sleep(250);
 
-    // Humanized mouse dispatch
     const rect = el.getBoundingClientRect();
     const clientX = rect.left + rect.width / 2;
     const clientY = rect.top + rect.height / 2;
@@ -110,17 +112,29 @@ export class ActionExecutor {
     el.dispatchEvent(new MouseEvent('mouseup', opts));
     el.click();
 
-    await this.sleep(600);
-    SemanticCrawler.clearHighlight();
+    // If button is inside form, trigger form submit event
+    if (el instanceof HTMLButtonElement && el.form) {
+      if (typeof el.form.requestSubmit === 'function') {
+        try {
+          el.form.requestSubmit(el);
+        } catch {
+          // Ignore if already submitted
+        }
+      }
+    }
+
+    await this.sleep(500);
+    DeepSemanticCrawler.clearHighlight();
 
     return { success: true };
   }
 
   private static async performType(step: WorkflowStep): Promise<{ success: boolean; error?: string }> {
-    const el = SemanticCrawler.findTargetElement(
+    const el = DeepSemanticCrawler.findSelfHealingElement(
       step.targetNodeSelector,
       step.targetNodeXPath,
-      step.targetSemanticName
+      step.targetSemanticName,
+      step.targetSemanticRole || 'textbox'
     ) as HTMLInputElement | HTMLTextAreaElement | null;
 
     if (!el) {
@@ -131,12 +145,12 @@ export class ActionExecutor {
     }
 
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    SemanticCrawler.highlightElement(el, 'TYPING');
+    DeepSemanticCrawler.highlightElement(el, 'INPUT');
     el.focus();
 
     const valueToType = step.value || '';
 
-    // React synthetic input setter hook bypass
+    // React synthetic input bypass
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       'value'
@@ -157,8 +171,13 @@ export class ActionExecutor {
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
 
+    // Dispatch keyboard events for real-time auto-suggest / enter key handlers
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+
     await this.sleep(400);
-    SemanticCrawler.clearHighlight();
+    DeepSemanticCrawler.clearHighlight();
 
     return { success: true };
   }
@@ -168,23 +187,24 @@ export class ActionExecutor {
     for (let i = 0; i < maxAttempts; i++) {
       if (document.readyState === 'complete') {
         if (!step.targetSemanticName && !step.targetNodeSelector) {
-          await this.sleep(500);
+          await this.sleep(400);
           return { success: true };
         }
 
-        const el = SemanticCrawler.findTargetElement(
+        const el = DeepSemanticCrawler.findSelfHealingElement(
           step.targetNodeSelector,
           step.targetNodeXPath,
-          step.targetSemanticName
+          step.targetSemanticName,
+          step.targetSemanticRole
         );
         if (el) {
           return { success: true };
         }
       }
-      await this.sleep(400);
+      await this.sleep(300);
     }
 
-    return { success: true }; // Proceed even if soft wait times out
+    return { success: true };
   }
 
   private static async performVerifyCondition(step: WorkflowStep): Promise<{

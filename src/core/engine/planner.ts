@@ -73,6 +73,58 @@ export class TaskPlanner {
       });
     }
 
+    // Case 0: Search / Lookup (e.g. "search about superman", "search for iphone", "find articles on quantum")
+    if (
+      lower.startsWith('search') ||
+      lower.startsWith('find') ||
+      lower.startsWith('lookup') ||
+      lower.startsWith('look up') ||
+      lower.includes('search for') ||
+      lower.includes('search about')
+    ) {
+      const searchTerms = prompt
+        .replace(/^(?:please\s+)?(?:search\s+(?:for|about|on)?|find\s+(?:articles?\s+about|for|about|on)?|look\s*up\s*(?:for|about|on)?|query\s+)/i, '')
+        .trim();
+      const query = searchTerms || prompt;
+
+      steps.push({
+        id: 'step-search-1',
+        action: 'wait_for',
+        description: 'Locate search box on page',
+        targetSemanticName: 'search',
+        targetSemanticRole: 'textbox',
+        status: 'pending'
+      });
+
+      steps.push({
+        id: 'step-search-2',
+        action: 'type',
+        description: `Type "${query}" into search box`,
+        targetSemanticName: 'search',
+        targetSemanticRole: 'textbox',
+        value: query,
+        status: 'pending'
+      });
+
+      steps.push({
+        id: 'step-search-3',
+        action: 'click',
+        description: 'Submit search query',
+        targetSemanticName: 'search',
+        targetSemanticRole: 'button',
+        status: 'pending'
+      });
+
+      steps.push({
+        id: 'step-search-4',
+        action: 'wait_for',
+        description: `Wait for search results for "${query}"`,
+        status: 'pending'
+      });
+
+      return steps;
+    }
+
     // Case 1: Utility / Bill Payment (e.g. CESC, Electric, Mobile Recharge, Water)
     if (lower.includes('bill') || lower.includes('cesc') || lower.includes('recharge') || lower.includes('electricity')) {
       const consumerIdMatch = prompt.match(/(?:consumer\s*(?:id|no|number)?|id|no)[\s:]*([A-Za-z0-9]+)/i);

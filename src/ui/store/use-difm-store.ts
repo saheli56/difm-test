@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Workflow, AutomationRule, VaultItem, DIFMState } from '../../core/types';
+import { Workflow, WorkflowStep, AutomationRule, VaultItem, DIFMState } from '../../core/types';
 import { TaskPlanner } from '../../core/engine/planner';
 import { ActionExecutor } from '../../core/engine/executor';
 import { AutomationManager } from '../../core/scheduler/automation-manager';
@@ -188,6 +188,53 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
   }
 }));
 
+async function executeStepInActiveTab(step: WorkflowStep): Promise<{
+  success: boolean;
+  error?: string;
+  extracted?: string;
+  requiresHitl?: boolean;
+  hitlReason?: string;
+}> {
+  if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTab = tabs[0];
+    if (activeTab?.id) {
+      if (step.action === 'navigate' && step.value) {
+        await chrome.tabs.update(activeTab.id, { url: step.value });
+        await new Promise((r) => setTimeout(r, 1500));
+        return { success: true };
+      }
+
+      try {
+        const response = await chrome.tabs.sendMessage(activeTab.id, {
+          type: 'DIFM_EXECUTE_ACTION_IN_TAB',
+          payload: { step }
+        });
+        if (response) return response;
+      } catch {
+        if (chrome.scripting) {
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: activeTab.id },
+              files: ['content.js']
+            });
+            await new Promise((r) => setTimeout(r, 200));
+            const response = await chrome.tabs.sendMessage(activeTab.id, {
+              type: 'DIFM_EXECUTE_ACTION_IN_TAB',
+              payload: { step }
+            });
+            if (response) return response;
+          } catch {
+            // Fall through to ActionExecutor
+          }
+        }
+      }
+    }
+  }
+
+  return await ActionExecutor.executeStep(step);
+}
+
 async function executeWorkflowGraph(
   wf: Workflow,
   set: (partial: Partial<DIFMStore> | ((state: DIFMStore) => Partial<DIFMStore>)) => void,
@@ -239,8 +286,8 @@ async function executeWorkflowGraph(
       return;
     }
 
-    // Execute action
-    const result = await ActionExecutor.executeStep(currentStep);
+    // Execute action in active browser tab
+    const result = await executeStepInActiveTab(currentStep);
 
     if (result.requiresHitl) {
       activeWf.status = 'paused_hitl';

@@ -89,6 +89,40 @@ export class DeepSemanticCrawler {
     semanticName?: string,
     targetRole?: string
   ): HTMLElement | null {
+    // Tier 0: Specialized Search Field Heuristics
+    if (semanticName && (semanticName.toLowerCase().includes('search') || targetRole === 'textbox')) {
+      const searchInputs = [
+        '#searchInput',
+        'input[type="search"]',
+        'input[name="search"]',
+        'input[name="q"]',
+        'input[aria-label*="search" i]',
+        'input[placeholder*="search" i]',
+        'form[role="search"] input',
+        '.cdx-text-input__input'
+      ];
+      if (targetRole === 'textbox' || !targetRole) {
+        for (const s of searchInputs) {
+          const el = document.querySelector(s) as HTMLElement;
+          if (el && this.isVisible(el)) return el;
+        }
+      }
+
+      if (targetRole === 'button' || semanticName.toLowerCase().includes('search button') || semanticName.toLowerCase().includes('submit')) {
+        const searchButtons = [
+          'button[type="submit"]',
+          'button.searchButton',
+          'button.pure-button',
+          'button[aria-label*="search" i]',
+          '.cdx-search-input__end-button'
+        ];
+        for (const s of searchButtons) {
+          const el = document.querySelector(s) as HTMLElement;
+          if (el && this.isVisible(el)) return el;
+        }
+      }
+    }
+
     // Tier 1: Direct Selector Match
     if (selector) {
       try {
