@@ -20,7 +20,18 @@ export const App: React.FC = () => {
   const handleRun = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim()) return;
-    startWorkflow(prompt);
+    const val = prompt;
+    setPrompt('');
+
+    if (typeof chrome !== 'undefined' && chrome.sidePanel && chrome.sidePanel.open) {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.sidePanel.open({ tabId: tabs[0].id }).catch(() => {});
+        }
+      });
+    }
+
+    startWorkflow(val);
   };
 
   const openSidePanel = () => {

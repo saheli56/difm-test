@@ -191,23 +191,38 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
 async function findActiveWebTab(): Promise<chrome.tabs.Tab | null> {
   if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return null;
   
+  // 1. Priority: Active tab in current window (Chrome Side Panel / Popup standard)
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url && tab.url.startsWith('http') && !tab.url.includes('extension://')) return tab;
+  } catch {}
+
+  // 2. Fallback: Active tab in last focused window
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (tab?.url && tab.url.startsWith('http') && !tab.url.includes('extension://')) return tab;
   } catch {}
 
+  // 3. Fallback: Any active http tab
   try {
     const tabs = await chrome.tabs.query({ active: true });
-    const webTab = tabs.find((t) => t.url && t.url.startsWith('http') && !t.url.includes('extension://'));
+    const webTab = tabs.find((t) => t.url && t.url.startsWith('http') && !tabUrlIsExtension(t.url));
     if (webTab) return webTab;
   } catch {}
 
+  // 4. Fallback: Any open http web tab
   try {
     const allTabs = await chrome.tabs.query({});
-    return allTabs.find((t) => t.active && t.url && t.url.startsWith('http')) || allTabs.find((t) => t.url && t.url.startsWith('http')) || null;
+    return allTabs.find((t) => t.active && t.url && t.url.startsWith('http') && !tabUrlIsExtension(t.url)) ||
+           allTabs.find((t) => t.url && t.url.startsWith('http') && !tabUrlIsExtension(t.url)) || null;
   } catch {}
 
   return null;
+}
+
+function tabUrlIsExtension(url?: string): boolean {
+  if (!url) return true;
+  return url.includes('extension://') || url.includes('moz-extension://') || url.includes('chrome://') || url.includes('about:');
 }
 
 async function executeStepInActiveTab(step: WorkflowStep): Promise<{
