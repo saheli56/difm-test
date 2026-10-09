@@ -23,6 +23,22 @@ export class ActionExecutor {
       }
 
       switch (step.action) {
+        case 'navigate':
+          if (step.value) {
+            if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.update) {
+              const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+              if (tabs[0]?.id) {
+                await chrome.tabs.update(tabs[0].id, { url: step.value });
+                await this.sleep(1500);
+                return { success: true };
+              }
+            }
+            window.location.href = step.value;
+            await this.sleep(1500);
+            return { success: true };
+          }
+          return { success: true };
+
         case 'click':
           return await this.performClick(step);
 

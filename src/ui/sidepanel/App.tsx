@@ -14,13 +14,21 @@ export const App: React.FC = () => {
   }, [init]);
 
   return (
-    <div className="h-full w-full flex flex-col bg-zinc-950 text-zinc-100 antialiased select-none">
+    <div className="h-full w-full flex flex-col bg-zinc-950 text-zinc-100 antialiased select-none overflow-hidden">
       <Header />
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {activeView === 'telemetry' && <TelemetryView />}
-        {activeView === 'automations' && <AutomationsView />}
-        {activeView === 'vault' && <VaultView />}
-        {activeView === 'settings' && <SettingsView />}
+      <main className="flex-1 flex flex-col overflow-hidden relative bg-zinc-950">
+        <div className={`h-full w-full flex-col ${activeView === 'telemetry' ? 'flex' : 'hidden'}`}>
+          <TelemetryView />
+        </div>
+        <div className={`h-full w-full flex-col ${activeView === 'automations' ? 'flex' : 'hidden'}`}>
+          <AutomationsView />
+        </div>
+        <div className={`h-full w-full flex-col ${activeView === 'vault' ? 'flex' : 'hidden'}`}>
+          <VaultView />
+        </div>
+        <div className={`h-full w-full flex-col ${activeView === 'settings' ? 'flex' : 'hidden'}`}>
+          <SettingsView />
+        </div>
       </main>
     </div>
   );

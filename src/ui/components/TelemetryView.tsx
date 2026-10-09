@@ -159,7 +159,7 @@ export const TelemetryView: React.FC = () => {
 
       {/* Reactive HITL Barrier Card */}
       {currentWorkflow?.status === 'paused_hitl' && currentWorkflow.hitlCheckpoint && (
-        <div className="bg-rose-950/30 border border-rose-800/80 rounded-lg p-3 flex flex-col gap-2.5 shadow-lg animate-in fade-in slide-in-from-top-1">
+        <div className="bg-rose-950/30 border border-rose-800/80 rounded-lg p-3 flex flex-col gap-2.5 shadow-lg">
           <div className="flex items-start gap-2">
             <div className="p-1.5 rounded-md bg-rose-900/50 text-rose-300 border border-rose-700/60 shrink-0">
               {currentWorkflow.hitlCheckpoint.reason === 'payment_approval' ? (

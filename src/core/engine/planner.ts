@@ -1,5 +1,6 @@
 import { Workflow, WorkflowStep, VaultItem } from '../types';
 import { ReactiveGuard } from './reactive-guard';
+import { DomainResolver } from './domain-resolver';
 
 export class TaskPlanner {
   public static async planWorkflow(
@@ -8,13 +9,19 @@ export class TaskPlanner {
     vault: VaultItem[] = []
   ): Promise<Workflow> {
     const interpolatedPrompt = this.interpolateVaultVariables(prompt, vault);
-    const steps = await this.decomposePromptToSteps(interpolatedPrompt, currentUrl);
+    const domainResolution = DomainResolver.resolveTargetUrl(interpolatedPrompt, currentUrl);
+
+    const steps = await this.decomposePromptToSteps(
+      interpolatedPrompt,
+      domainResolution.targetUrl,
+      domainResolution.needsNavigation
+    );
 
     const workflow: Workflow = {
       id: `wf-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       title: this.generateWorkflowTitle(prompt),
       rawPrompt: prompt,
-      targetUrl: currentUrl,
+      targetUrl: domainResolution.targetUrl,
       steps,
       status: 'idle',
       createdAt: Date.now(),
@@ -25,7 +32,9 @@ export class TaskPlanner {
           id: `log-${Date.now()}`,
           timestamp: Date.now(),
           level: 'info',
-          message: `Decomposed plan with ${steps.length} steps (Local deterministic & semantic engine)`
+          message: domainResolution.needsNavigation
+            ? `Target portal identified: ${domainResolution.targetUrl}. Adding navigation step.`
+            : `Operating in-place on current active tab: ${currentUrl}`
         }
       ]
     };
@@ -50,9 +59,19 @@ export class TaskPlanner {
     return `${trimmed.substring(0, 37)}...`;
   }
 
-  private static async decomposePromptToSteps(prompt: string, currentUrl: string): Promise<WorkflowStep[]> {
+  private static async decomposePromptToSteps(prompt: string, targetUrl: string, needsNavigation: boolean): Promise<WorkflowStep[]> {
     const lower = prompt.toLowerCase();
     const steps: WorkflowStep[] = [];
+
+    if (needsNavigation) {
+      steps.push({
+        id: 'step-nav-0',
+        action: 'navigate',
+        description: `Navigate to target portal (${targetUrl})`,
+        value: targetUrl,
+        status: 'pending'
+      });
+    }
 
     // Case 1: Utility / Bill Payment (e.g. CESC, Electric, Mobile Recharge, Water)
     if (lower.includes('bill') || lower.includes('cesc') || lower.includes('recharge') || lower.includes('electricity')) {
