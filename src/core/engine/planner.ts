@@ -111,9 +111,25 @@ export class TaskPlanner {
         status: 'pending'
       });
 
+      steps.push({
+        id: 'step-comp-4',
+        action: 'click',
+        description: 'Open top matching product page',
+        targetSemanticName: 'first_product',
+        targetSemanticRole: 'link',
+        status: 'pending'
+      });
+
+      steps.push({
+        id: 'step-comp-5',
+        action: 'wait_for',
+        description: 'Wait for product detail page to load',
+        status: 'pending'
+      });
+
       if (targetPrice !== null) {
         steps.push({
-          id: 'step-comp-4',
+          id: 'step-comp-6',
           action: 'verify_condition',
           description: `Verify price is below ₹${targetPrice.toLocaleString()}`,
           condition: {
@@ -125,7 +141,7 @@ export class TaskPlanner {
       }
 
       steps.push({
-        id: 'step-comp-5',
+        id: 'step-comp-7',
         action: 'click',
         description: 'Click "Add to Cart"',
         targetSemanticName: 'add to cart',
@@ -134,7 +150,7 @@ export class TaskPlanner {
       });
 
       steps.push({
-        id: 'step-comp-6',
+        id: 'step-comp-8',
         action: 'checkpoint_approval',
         description: 'Item matched price condition and was added to cart. Authorize proceeding to checkout',
         requiresApproval: true,
@@ -142,7 +158,7 @@ export class TaskPlanner {
       });
 
       steps.push({
-        id: 'step-comp-7',
+        id: 'step-comp-9',
         action: 'click',
         description: 'Open Cart & Proceed to Checkout',
         targetSemanticName: 'cart',
