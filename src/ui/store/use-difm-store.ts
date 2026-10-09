@@ -327,18 +327,45 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
             if (s.action === 'click') {
               // 1. First / Top Product Link in Search Results (Universal for Amazon, Flipkart, eBay, Walmart, etc.)
               if (s.targetSemanticName === 'first_product' || s.description?.toLowerCase().includes('open top matching')) {
-                const allAnchors = Array.from(document.querySelectorAll('a[href]')) as HTMLAnchorElement[];
+                const searchArea = document.querySelector('[data-component-type="s-search-results"], .s-result-list, [role="main"], main, ._1YokD2') || document.body;
+                const allAnchors = Array.from(searchArea.querySelectorAll('a[href]')) as HTMLAnchorElement[];
+
                 for (const a of allAnchors) {
                   if (a.offsetParent === null) continue;
-                  const rect = a.getBoundingClientRect();
-                  if (rect.top < 70) continue; // Skip top header bar
+                  if (a.closest('header, nav, #navbar, #nav-main, #nav-subnav, #leftNav, #s-refinements, [role="navigation"], ._1dqAae')) continue;
+
                   const href = a.href.toLowerCase();
-                  if (href.includes('cart') || href.includes('account') || href.includes('help') || href.includes('login') || href.includes('signin') || href.endsWith('#')) continue;
+                  if (
+                    href.includes('cart') ||
+                    href.includes('account') ||
+                    href.includes('help') ||
+                    href.includes('login') ||
+                    href.includes('signin') ||
+                    href.includes('/b/') ||
+                    href.includes('/b?') ||
+                    href.includes('browse') ||
+                    href.includes('customer-preferences') ||
+                    href.endsWith('#')
+                  ) {
+                    continue;
+                  }
 
-                  const isProductPattern = href.includes('/p/') || href.includes('/dp/') || href.includes('/product/') || href.includes('/item/') || href.includes('/itm/') || href.includes('/buy/');
-                  const hasHeadingOrImg = !!a.querySelector('h1, h2, h3, h4, img, [class*="title" i], [class*="name" i], [class*="product" i]');
+                  const isProductPattern =
+                    href.includes('/dp/') ||
+                    href.includes('/gp/product/') ||
+                    href.includes('/sspa/click') ||
+                    href.includes('/p/') ||
+                    href.includes('/product/') ||
+                    href.includes('/item/') ||
+                    href.includes('/itm/');
 
-                  if (isProductPattern || hasHeadingOrImg) {
+                  const isInsideProductCard = !!a.closest(
+                    '[data-component-type="s-search-result"], [data-asin]:not([data-asin=""]), [data-id], ._1AtVbE, ._13oc-S, ._2kHMtA, ._1xHGtK, .product-card, .search-result'
+                  );
+
+                  const hasHeading = !!a.querySelector('h1, h2, h3, h4, [class*="title" i]') || !!a.closest('h1, h2, h3, h4');
+
+                  if ((isProductPattern && (isInsideProductCard || hasHeading)) || (isInsideProductCard && (hasHeading || a.querySelector('img')))) {
                     a.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     window.location.href = a.href;
                     return { success: true, navigated: true };
