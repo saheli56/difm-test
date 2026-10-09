@@ -136,8 +136,17 @@ export class TaskPlanner {
       steps.push({
         id: 'step-comp-6',
         action: 'checkpoint_approval',
-        description: 'Item matched price condition. Authorize checkout & final payment',
+        description: 'Item matched price condition and was added to cart. Authorize proceeding to checkout',
         requiresApproval: true,
+        status: 'pending'
+      });
+
+      steps.push({
+        id: 'step-comp-7',
+        action: 'click',
+        description: 'Open Cart & Proceed to Checkout',
+        targetSemanticName: 'cart',
+        targetSemanticRole: 'button',
         status: 'pending'
       });
 

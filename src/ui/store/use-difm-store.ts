@@ -318,8 +318,37 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
             ];
 
             if (s.action === 'click') {
-              // If Add to Cart action
-              if (s.targetSemanticName?.toLowerCase().includes('cart')) {
+              // 1. If Open Cart / Checkout navigation action
+              if (s.description?.toLowerCase().includes('open cart') || s.targetSemanticName?.toLowerCase() === 'cart') {
+                const navCart = document.querySelector('#nav-cart, #nav-cart-count-container, a[href*="/cart"], a[href*="/gp/cart"]') as HTMLElement | null;
+                if (navCart) {
+                  navCart.click();
+                  return { success: true };
+                }
+                if (window.location.hostname.includes('amazon')) {
+                  window.location.href = 'https://www.amazon.in/gp/cart/view.html';
+                  return { success: true };
+                }
+              }
+
+              // 2. If Add to Cart action
+              if (s.targetSemanticName?.toLowerCase().includes('cart') || s.description?.toLowerCase().includes('add to cart')) {
+                // A. Check for inline search card yellow "Add to cart" buttons
+                const allButtons = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a, .a-button-text, .a-button-inner button'));
+                for (const el of allButtons) {
+                  const txt = (el.textContent || (el as HTMLInputElement).value || el.getAttribute('aria-label') || '').toLowerCase().trim();
+                  if (txt === 'add to cart' || txt === 'add to basket') {
+                    const btn = (el.closest('.a-button-inner')?.querySelector('button') || el) as HTMLElement;
+                    btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                    btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    btn.click();
+                    return { success: true };
+                  }
+                }
+
+                // B. Check standard product page buttons
                 for (const selector of addToCartButtons) {
                   const el = document.querySelector(selector) as HTMLElement | null;
                   if (el && el.offsetParent !== null) {
@@ -329,7 +358,7 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
                   }
                 }
 
-                // If on search results page, click first product result
+                // C. If on search results page, click first product link
                 const firstProduct = document.querySelector(
                   '[data-component-type="s-search-result"] h2 a, .s-product-image-container a, a.a-link-normal.s-no-outline'
                 ) as HTMLElement | null;
@@ -340,6 +369,7 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
                 }
               }
 
+              // 3. Search submit buttons
               let btnEl: HTMLElement | null = null;
               for (const selector of searchButtons) {
                 const el = document.querySelector(selector) as HTMLElement | null;
