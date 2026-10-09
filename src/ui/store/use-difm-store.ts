@@ -47,13 +47,14 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
     const vault = await ContextVault.getItems();
 
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]) {
+      chrome.tabs.query({ active: true }, (tabs) => {
+        const webTab = tabs?.find((t) => t.url && t.url.startsWith('http')) || tabs?.[0];
+        if (webTab) {
           set({
             activeTabInfo: {
-              url: tabs[0].url || '',
-              title: tabs[0].title || '',
-              id: tabs[0].id
+              url: webTab.url || '',
+              title: webTab.title || '',
+              id: webTab.id
             }
           });
         }
@@ -71,7 +72,6 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
     workflow.status = 'running';
     set({ currentWorkflow: { ...workflow } });
 
-    // Execute steps sequentially
     await executeWorkflowGraph(workflow, set, get);
   },
 
@@ -188,6 +188,16 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
   }
 }));
 
+async function findActiveWebTab(): Promise<chrome.tabs.Tab | null> {
+  if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return null;
+  const tabs = await chrome.tabs.query({ active: true });
+  const webTab = tabs.find((t) => t.url && t.url.startsWith('http') && !t.url.includes('extension://'));
+  if (webTab) return webTab;
+
+  const allTabs = await chrome.tabs.query({});
+  return allTabs.find((t) => t.active && t.url && t.url.startsWith('http')) || allTabs.find((t) => t.url && t.url.startsWith('http')) || null;
+}
+
 async function executeStepInActiveTab(step: WorkflowStep): Promise<{
   success: boolean;
   error?: string;
@@ -195,38 +205,66 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
   requiresHitl?: boolean;
   hitlReason?: string;
 }> {
-  if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const activeTab = tabs[0];
-    if (activeTab?.id) {
-      if (step.action === 'navigate' && step.value) {
-        await chrome.tabs.update(activeTab.id, { url: step.value });
-        await new Promise((r) => setTimeout(r, 1500));
-        return { success: true };
-      }
+  const activeTab = await findActiveWebTab();
 
-      try {
-        const response = await chrome.tabs.sendMessage(activeTab.id, {
-          type: 'DIFM_EXECUTE_ACTION_IN_TAB',
-          payload: { step }
-        });
-        if (response) return response;
-      } catch {
-        if (chrome.scripting) {
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: activeTab.id },
-              files: ['content.js']
-            });
-            await new Promise((r) => setTimeout(r, 200));
-            const response = await chrome.tabs.sendMessage(activeTab.id, {
-              type: 'DIFM_EXECUTE_ACTION_IN_TAB',
-              payload: { step }
-            });
-            if (response) return response;
-          } catch {
-            // Fall through to ActionExecutor
+  if (activeTab?.id) {
+    if (step.action === 'navigate' && step.value) {
+      await chrome.tabs.update(activeTab.id, { url: step.value });
+      await new Promise((r) => setTimeout(r, 1500));
+      return { success: true };
+    }
+
+    try {
+      const response = await chrome.tabs.sendMessage(activeTab.id, {
+        type: 'DIFM_EXECUTE_ACTION_IN_TAB',
+        payload: { step }
+      });
+      if (response) return response;
+    } catch {
+      // Direct in-tab scripted execution fallback
+      if (chrome.scripting) {
+        try {
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: activeTab.id },
+            func: (s) => {
+              const searchInput = document.querySelector(
+                '#searchInput, input[type="search"], input[name="search"], input[name="q"], [aria-label*="search" i], [placeholder*="search" i]'
+              ) as HTMLInputElement | null;
+
+              if (s.action === 'type' && searchInput) {
+                searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                searchInput.focus();
+                searchInput.value = s.value || '';
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                searchInput.dispatchEvent(new Event('change', { bubbles: true }));
+                searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+                return { success: true };
+              }
+
+              if (s.action === 'click') {
+                const searchButton = document.querySelector(
+                  'button[type="submit"], button.searchButton, button.pure-button, .cdx-search-input__end-button'
+                ) as HTMLElement | null;
+                if (searchButton) {
+                  searchButton.click();
+                  return { success: true };
+                }
+                if (searchInput && searchInput.form) {
+                  searchInput.form.submit();
+                  return { success: true };
+                }
+              }
+
+              return { success: true };
+            },
+            args: [step]
+          });
+
+          if (results?.[0]?.result) {
+            return results[0].result as any;
           }
+        } catch (e: any) {
+          return { success: false, error: e.message || 'Scripting execution failed' };
         }
       }
     }
@@ -243,7 +281,6 @@ async function executeWorkflowGraph(
   let activeWf = { ...wf };
 
   while (activeWf.activeStepIndex < activeWf.steps.length) {
-    // Check if aborted in meantime
     const currentState = get();
     if (currentState.currentWorkflow?.status === 'aborted') {
       return;
@@ -252,7 +289,6 @@ async function executeWorkflowGraph(
     const currentIndex = activeWf.activeStepIndex;
     const currentStep = activeWf.steps[currentIndex];
 
-    // Mark step executing
     activeWf.steps[currentIndex] = {
       ...currentStep,
       status: 'executing',
@@ -267,7 +303,6 @@ async function executeWorkflowGraph(
     });
     set({ currentWorkflow: { ...activeWf } });
 
-    // Handle manual approval checkpoint requirement
     if (currentStep.requiresApproval || currentStep.action === 'checkpoint_approval') {
       activeWf.status = 'paused_hitl';
       activeWf.hitlCheckpoint = {
@@ -286,7 +321,6 @@ async function executeWorkflowGraph(
       return;
     }
 
-    // Execute action in active browser tab
     const result = await executeStepInActiveTab(currentStep);
 
     if (result.requiresHitl) {
@@ -328,7 +362,6 @@ async function executeWorkflowGraph(
       return;
     }
 
-    // Step succeeded
     activeWf.steps[currentIndex] = {
       ...currentStep,
       status: 'success'
@@ -344,7 +377,6 @@ async function executeWorkflowGraph(
     set({ currentWorkflow: { ...activeWf } });
   }
 
-  // All steps completed
   activeWf.status = 'completed';
   activeWf.executionLogs.push({
     id: `log-${Date.now()}`,
