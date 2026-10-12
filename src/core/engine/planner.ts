@@ -53,7 +53,59 @@ export class TaskPlanner {
     return result;
   }
 
+  public static extractProductSearchQuery(prompt: string): string {
+    let clean = prompt.trim();
+
+    // 1. Strip leading instruction verbs
+    clean = clean.replace(/^(?:please\s+)?(?:search\s*(?:for|about|on)?|find\s*(?:me|out)?|look\s*up|get\s*me|buy|add)\s+/i, '');
+
+    // 2. Strip conditional clauses & price thresholds from the end
+    clean = clean.replace(/(?:\s+and)?\s+(?:if\s+(?:the\s+)?price\s+is\s+(?:below|under|less\s+than|<|at\s+most|within)\s*.*)$/i, '');
+    clean = clean.replace(/(?:\s+and)?\s+(?:if\s+price\s+.*)$/i, '');
+    clean = clean.replace(/(?:\s+if\s+(?:the\s+)?price\s+.*)$/i, '');
+    clean = clean.replace(/(?:\s+and\s+(?:then\s+)?(?:add\s+(?:it\s+)?to\s+cart|buy\s+(?:it\s+)?now|checkout).*)$/i, '');
+    clean = clean.replace(/(?:\s+and\s+to\s+cart.*)$/i, '');
+    clean = clean.replace(/(?:\s+then\s+add\s+(?:it\s+)?to\s+cart.*)$/i, '');
+    clean = clean.replace(/(?:\s+below\s*[$₹€£]?\s*[0-9,]+.*)$/i, '');
+    clean = clean.replace(/(?:\s+under\s*[$₹€£]?\s*[0-9,]+.*)$/i, '');
+
+    // 3. Strip platform prepositions from the end or middle
+    clean = clean.replace(/\s+(?:on|in|from|at)\s+(?:flipkart|amazon(?:\.in|\.com)?|swiggy|zomato|myntra|meesho|tata\s*1mg|google|ebay|walmart)\b/gi, '');
+
+    // 4. Clean trailing and leading punctuation / whitespace
+    clean = clean.replace(/^[\s,;.-]+|[\s,;.-]+$/g, '').trim();
+
+    // 5. Intelligent fallback
+    if (!clean) {
+      const words = prompt
+        .replace(/^(?:search\s*(?:for|about)?|find|buy|add)/i, '')
+        .replace(/\b(?:flipkart|amazon|cart|price|below|under|then|and|if|the|is|to)\b/gi, '')
+        .trim();
+      return words || prompt.trim();
+    }
+
+    return clean;
+  }
+
+  public static extractTargetPrice(prompt: string): number | null {
+    const match = prompt.match(/(?:below|under|less\s+than|<|within|at\s+most)\s*(?:rs\.?|inr|[$₹€£])?\s*([0-9,]+(?:\.[0-9]+)?)/i);
+    if (match) {
+      const num = parseFloat(match[1].replace(/,/g, ''));
+      return isNaN(num) ? null : num;
+    }
+    const trailingMatch = prompt.match(/([0-9,]+(?:\.[0-9]+)?)\s*(?:rs\.?|inr|rupees|bucks)\b/i);
+    if (trailingMatch) {
+      const num = parseFloat(trailingMatch[1].replace(/,/g, ''));
+      return isNaN(num) ? null : num;
+    }
+    return null;
+  }
+
   private static generateWorkflowTitle(prompt: string): string {
+    const query = this.extractProductSearchQuery(prompt);
+    if (query && query.length <= 40 && query !== prompt) {
+      return `Search: ${query}`;
+    }
     const trimmed = prompt.trim();
     if (trimmed.length <= 40) return trimmed;
     return `${trimmed.substring(0, 37)}...`;
@@ -74,16 +126,13 @@ export class TaskPlanner {
     }
 
     // Case 0A: Composite Search + Conditional Add to Cart / Price Filter
-    // e.g. "search for sony xm5 headphones and to cart if price is below 50000"
+    // e.g. "search for Mi 20000 mAh 22.5 W on flipkart and if the price is below 2000 rs then add it to cart"
     if (
-      (lower.includes('search') || lower.includes('find')) &&
-      (lower.includes('cart') || lower.includes('buy'))
+      (lower.includes('search') || lower.includes('find') || lower.includes('buy') || lower.includes('look up')) &&
+      (lower.includes('cart') || lower.includes('buy') || lower.includes('price'))
     ) {
-      const searchMatch = prompt.match(/(?:search\s*(?:for|about)?|find)\s+([a-zA-Z0-9\s-]+?)(?:\s+and\s+(?:add\s+)?to\s+cart|\s+and\s+buy|\s+if\s+price|$)/i);
-      const query = searchMatch ? searchMatch[1].trim() : 'item';
-
-      const priceMatch = prompt.match(/(?:below|under|less than|<)\s*[$₹€£]?\s*([0-9,]+)/i);
-      const targetPrice = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : null;
+      const query = this.extractProductSearchQuery(prompt);
+      const targetPrice = this.extractTargetPrice(prompt);
 
       steps.push({
         id: 'step-comp-1',
@@ -178,10 +227,7 @@ export class TaskPlanner {
       lower.includes('search for') ||
       lower.includes('search about')
     ) {
-      const searchTerms = prompt
-        .replace(/^(?:please\s+)?(?:search\s+(?:for|about|on)?|find\s+(?:articles?\s+about|for|about|on)?|look\s*up\s*(?:for|about|on)?|query\s+)/i, '')
-        .trim();
-      const query = searchTerms || prompt;
+      const query = this.extractProductSearchQuery(prompt);
 
       steps.push({
         id: 'step-search-1',

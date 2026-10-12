@@ -430,20 +430,49 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
 
               // 3. Add to Cart / Buy Now Action
               if (s.targetSemanticName?.toLowerCase().includes('cart') || s.description?.toLowerCase().includes('add to cart')) {
+                const isElVisible = (el: HTMLElement) => {
+                  if (!el) return false;
+                  const rect = el.getBoundingClientRect();
+                  if (rect.width <= 0 || rect.height <= 0) return false;
+                  const style = window.getComputedStyle(el);
+                  return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+                };
+
                 const allElements = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a, [role="button"], div, span')) as HTMLElement[];
                 let cartBtn: HTMLElement | null = null;
 
-                // Priority 0: Standard Buybox button IDs (Amazon, Shopify, standard e-commerce)
-                const primaryBuybox = document.querySelector('#add-to-cart-button, input[name="submit.add-to-cart"], button[name="submit.add-to-cart"]') as HTMLElement | null;
-                if (primaryBuybox && primaryBuybox.offsetParent !== null) {
-                  cartBtn = primaryBuybox;
+                // Priority 0: Standard Buybox button IDs & platform classes (Amazon, Flipkart, Shopify)
+                const primaryBuyboxSelectors = [
+                  '#add-to-cart-button',
+                  'input#add-to-cart-button',
+                  'input[name="submit.add-to-cart"]',
+                  'button[name="submit.add-to-cart"]',
+                  'button._2KpZ6l._2U9uOA._3v1-ww', // Flipkart classic add to cart
+                  'button._2KpZ6l._2U9uOA',
+                  'button[aria-label*="add to cart" i]',
+                  'button[aria-label*="add to bag" i]',
+                  'button[aria-label*="add to basket" i]',
+                  'button[title*="add to cart" i]',
+                  'button[title*="add to bag" i]',
+                  '[data-action="add-to-cart"]',
+                  '.a-button-input[value="Add to Cart"]',
+                  '[data-testid*="add-to-cart" i]',
+                  '[data-testid*="addToCart" i]'
+                ];
+
+                for (const sel of primaryBuyboxSelectors) {
+                  const el = document.querySelector(sel) as HTMLElement | null;
+                  if (el && isElVisible(el)) {
+                    cartBtn = el;
+                    break;
+                  }
                 }
 
                 // Priority A: Exact "Add to cart" / "Add to bag" / "Add to basket"
                 if (!cartBtn) {
                   for (const el of allElements) {
-                    if (el.offsetParent === null) continue;
-                    if (el.children.length > 2) continue; // Skip large parent container banners
+                    if (!isElVisible(el)) continue;
+                    if (el.children.length > 3) continue; // Skip large parent container banners
                     const txt = (el.innerText || el.textContent || (el as HTMLInputElement).value || el.getAttribute('aria-label') || '').trim();
                     if (/^add\s*to\s*(?:cart|bag|basket)$/i.test(txt)) {
                       let cur: HTMLElement | null = el;
@@ -460,10 +489,61 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
                   }
                 }
 
-                // Priority B: Loose regex fallback
+                // Priority B: Icon-Only Cart Button (Flipkart bottom sticky action bar, mobile-responsive layouts)
                 if (!cartBtn) {
                   for (const el of allElements) {
-                    if (el.offsetParent === null) continue;
+                    if (!isElVisible(el)) continue;
+                    const tag = el.tagName.toLowerCase();
+                    const isClickable = tag === 'button' || tag === 'a' || el.getAttribute('role') === 'button' || (typeof el.className === 'string' && el.className.includes('button'));
+                    if (!isClickable) continue;
+
+                    const hasCartSvg = !!el.querySelector('svg[class*="cart" i], svg[class*="basket" i], svg[class*="bag" i], svg[id*="cart" i], svg path[d*="cart" i], svg._1KOMV2');
+                    const hasCartAria = (el.getAttribute('aria-label') || '').toLowerCase().includes('cart') || (el.getAttribute('title') || '').toLowerCase().includes('cart');
+                    const hasCartClass = typeof el.className === 'string' && el.className.toLowerCase().includes('cart');
+
+                    if (hasCartSvg || hasCartAria || hasCartClass) {
+                      cartBtn = el;
+                      break;
+                    }
+
+                    const svg = el.querySelector('svg');
+                    if (svg) {
+                      const parentBar = el.closest('[class*="bottom" i], [class*="bar" i], [class*="row" i], [class*="action" i], [class*="buy" i], footer, nav');
+                      if (parentBar) {
+                        const parentText = parentBar.textContent?.toLowerCase() || '';
+                        if (parentText.includes('buy now') || parentText.includes('buy with emi') || parentText.includes('emi')) {
+                          cartBtn = el;
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // Priority C: Sibling / Adjacent to "Buy Now" or "Buy with EMI" button
+                if (!cartBtn) {
+                  for (const el of allElements) {
+                    if (!isElVisible(el)) continue;
+                    const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+                    if (txt.includes('buy now') || txt.includes('buy with emi')) {
+                      const container = el.parentElement;
+                      if (container) {
+                        const siblingBtn = Array.from(container.querySelectorAll('button, [role="button"], a')).find(
+                          (sib) => sib !== el && isElVisible(sib as HTMLElement) && !!sib.querySelector('svg, img')
+                        ) as HTMLElement | undefined;
+                        if (siblingBtn) {
+                          cartBtn = siblingBtn;
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // Priority D: Loose regex fallback
+                if (!cartBtn) {
+                  for (const el of allElements) {
+                    if (!isElVisible(el)) continue;
                     if (el.children.length > 2) continue;
                     const txt = (el.innerText || el.textContent || (el as HTMLInputElement).value || '').trim();
                     if (/^(?:buy\s*now|place\s*order|add\s*item)$/i.test(txt)) {
@@ -492,6 +572,11 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
                   }
                   return { success: true, clickedCart: true };
                 }
+
+                return {
+                  success: false,
+                  error: 'Could not find "Add to Cart" button on product page.'
+                };
               }
 
               // 4. Search Submit (Dispatches Enter key event on active/search input + clicks search button)

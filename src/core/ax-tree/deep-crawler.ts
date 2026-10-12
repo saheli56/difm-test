@@ -135,6 +135,94 @@ export class DeepSemanticCrawler {
       }
     }
 
+    // Tier 0B: Specialized Buybox & Add to Cart Heuristics (Amazon, Flipkart, Shopify, etc.)
+    if (semanticName && (semanticName.toLowerCase().includes('cart') || semanticName.toLowerCase().includes('buy'))) {
+      const standardBuyboxSelectors = [
+        '#add-to-cart-button',
+        'input#add-to-cart-button',
+        'input[name="submit.add-to-cart"]',
+        'button[name="submit.add-to-cart"]',
+        'button._2KpZ6l._2U9uOA._3v1-ww',
+        'button._2KpZ6l._2U9uOA',
+        '[data-action="add-to-cart"]',
+        '.a-button-input[value="Add to Cart"]',
+        'button[aria-label*="add to cart" i]',
+        'button[aria-label*="add to bag" i]',
+        'button[aria-label*="add to basket" i]',
+        'button[title*="add to cart" i]',
+        'button[title*="add to bag" i]',
+        '[data-testid*="add-to-cart" i]',
+        '[data-testid*="addToCart" i]'
+      ];
+
+      for (const sel of standardBuyboxSelectors) {
+        try {
+          const el = document.querySelector(sel) as HTMLElement;
+          if (el && this.isVisible(el)) return el;
+        } catch {}
+      }
+
+      const allBtns = Array.from(document.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"], div, span')) as HTMLElement[];
+
+      // 1. Text match: "Add to cart" / "Add to bag" / "Add to basket"
+      for (const el of allBtns) {
+        if (!this.isVisible(el)) continue;
+        if (el.children.length > 3) continue;
+        const txt = (el.innerText || el.textContent || (el as HTMLInputElement).value || el.getAttribute('aria-label') || '').trim();
+        if (/^add\s*to\s*(?:cart|bag|basket)$/i.test(txt)) {
+          let cur: HTMLElement | null = el;
+          while (cur && cur !== document.body) {
+            if (cur.tagName === 'BUTTON' || cur.tagName === 'A' || cur.getAttribute('role') === 'button' || cur.className.includes('_2KpZ6l')) {
+              return cur;
+            }
+            cur = cur.parentElement;
+          }
+          return el;
+        }
+      }
+
+      // 2. Icon-Only Cart Button (Flipkart bottom sticky action bar, responsive layouts)
+      for (const el of allBtns) {
+        if (!this.isVisible(el)) continue;
+        const tag = el.tagName.toLowerCase();
+        if (tag !== 'button' && tag !== 'a' && el.getAttribute('role') !== 'button' && !el.className.includes('button')) continue;
+
+        const hasCartSvg = !!el.querySelector('svg[class*="cart" i], svg[class*="basket" i], svg[class*="bag" i], svg[id*="cart" i], svg path[d*="cart" i], svg._1KOMV2');
+        const hasCartAria = (el.getAttribute('aria-label') || '').toLowerCase().includes('cart') || (el.getAttribute('title') || '').toLowerCase().includes('cart');
+        const hasCartClass = typeof el.className === 'string' && el.className.toLowerCase().includes('cart');
+
+        if (hasCartSvg || hasCartAria || hasCartClass) {
+          return el;
+        }
+
+        const svg = el.querySelector('svg');
+        if (svg) {
+          const parentBar = el.closest('[class*="bottom" i], [class*="bar" i], [class*="row" i], [class*="action" i], [class*="buy" i], footer, nav');
+          if (parentBar) {
+            const parentText = parentBar.textContent?.toLowerCase() || '';
+            if (parentText.includes('buy now') || parentText.includes('buy with emi') || parentText.includes('emi')) {
+              return el;
+            }
+          }
+        }
+      }
+
+      // 3. Sibling / Adjacent to "Buy Now" or "Buy with EMI"
+      for (const el of allBtns) {
+        if (!this.isVisible(el)) continue;
+        const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+        if (txt.includes('buy now') || txt.includes('buy with emi')) {
+          const container = el.parentElement;
+          if (container) {
+            const siblingBtn = Array.from(container.querySelectorAll('button, [role="button"], a')).find(
+              (sib) => sib !== el && this.isVisible(sib as HTMLElement) && !!sib.querySelector('svg, img')
+            ) as HTMLElement | undefined;
+            if (siblingBtn) return siblingBtn;
+          }
+        }
+      }
+    }
+
     // Tier 1: Direct Selector Match
     if (selector) {
       try {
