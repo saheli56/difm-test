@@ -437,4 +437,30 @@ export class TaskPlanner {
 
     return steps;
   }
+
+  private static extractSearchQueryAndBudget(prompt: string): { query: string; targetPrice: number | null } {
+    const p = prompt.trim();
+
+    // 1. Extract budget / price limit
+    const priceMatch = p.match(/(?:below|under|less than|lower than|<|<=)\s*(?:rs\.?|inr|[$₹€£])?\s*([0-9,]+(?:\.[0-9]+)?)/i);
+    const targetPrice = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : null;
+
+    // 2. Clean product query
+    let q = p;
+    // Strip leading action verbs
+    q = q.replace(/^(?:please\s+)?(?:search\s*(?:for|about|on)?|find\s*(?:for|about|on)?|look\s*up\s*(?:for|about|on)?|look\s*for|get|buy)\s+/i, '');
+    // Strip trailing price condition
+    q = q.replace(/(?:and\s+)?(?:if\s+)?(?:the\s+)?price\s*(?:is\s*)?(?:below|under|less than|lower than|<|<=)\s*.*$/i, '');
+    q = q.replace(/(?:and\s+)?(?:below|under|less than|lower than|<|<=)\s*(?:rs\.?|inr|[$₹€£])?\s*[0-9,]+.*$/i, '');
+    // Strip trailing add to cart / buy action
+    q = q.replace(/(?:and\s+)?(?:add\s+)?to\s+cart.*$/i, '');
+    q = q.replace(/(?:and\s+)?(?:buy|checkout).*$/i, '');
+    // Strip portal mentions (e.g. "on flipkart", "from amazon")
+    q = q.replace(/\b(?:on|in|at|from)\s+(?:amazon|flipkart|myntra|ebay|walmart|bestbuy)(?:\.in|\.com)?\b/i, '');
+
+    // Strip trailing conjunctions
+    q = q.replace(/\s+(?:and|then|if)\s*$/i, '').trim();
+
+    return { query: q || 'item', targetPrice };
+  }
 }

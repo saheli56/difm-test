@@ -68,7 +68,15 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
     const { activeTabInfo, vault } = get();
     set({ isExecuting: true, activeView: 'telemetry' });
 
-    const workflow = await TaskPlanner.planWorkflow(prompt, activeTabInfo.url, vault);
+    let currentUrl = activeTabInfo.url;
+    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.url) currentUrl = tab.url;
+      } catch {}
+    }
+
+    const workflow = await TaskPlanner.planWorkflow(prompt, currentUrl, vault);
     workflow.status = 'running';
     set({ currentWorkflow: { ...workflow } });
 
@@ -188,33 +196,42 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
   }
 }));
 
-async function findActiveWebTab(): Promise<chrome.tabs.Tab | null> {
+async function getExecutionTab(forNavigation = false): Promise<chrome.tabs.Tab | null> {
   if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return null;
-  
-  // 1. Priority: Active tab in current window (Chrome Side Panel / Popup standard)
+
+  // 1. Priority: Active tab in current window (standard for Side Panel & Popup)
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.url && tab.url.startsWith('http') && !tab.url.includes('extension://')) return tab;
+    if (tab) {
+      if (forNavigation) return tab;
+      if (tab.url && tab.url.startsWith('http') && !tabUrlIsExtension(tab.url)) return tab;
+    }
   } catch {}
 
   // 2. Fallback: Active tab in last focused window
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (tab?.url && tab.url.startsWith('http') && !tab.url.includes('extension://')) return tab;
+    if (tab) {
+      if (forNavigation) return tab;
+      if (tab.url && tab.url.startsWith('http') && !tabUrlIsExtension(tab.url)) return tab;
+    }
   } catch {}
 
-  // 3. Fallback: Any active http tab
+  // 3. Fallback: Any active tab
   try {
     const tabs = await chrome.tabs.query({ active: true });
-    const webTab = tabs.find((t) => t.url && t.url.startsWith('http') && !tabUrlIsExtension(t.url));
-    if (webTab) return webTab;
+    for (const t of tabs) {
+      if (forNavigation && t.id) return t;
+      if (t.url && t.url.startsWith('http') && !tabUrlIsExtension(t.url)) return t;
+    }
   } catch {}
 
-  // 4. Fallback: Any open http web tab
+  // 4. Fallback: Any open web tab
   try {
     const allTabs = await chrome.tabs.query({});
-    return allTabs.find((t) => t.active && t.url && t.url.startsWith('http') && !tabUrlIsExtension(t.url)) ||
-           allTabs.find((t) => t.url && t.url.startsWith('http') && !tabUrlIsExtension(t.url)) || null;
+    const webTab = allTabs.find((t) => t.url && t.url.startsWith('http') && !tabUrlIsExtension(t.url));
+    if (webTab) return webTab;
+    if (forNavigation && allTabs.length > 0) return allTabs[0];
   } catch {}
 
   return null;
@@ -222,7 +239,7 @@ async function findActiveWebTab(): Promise<chrome.tabs.Tab | null> {
 
 function tabUrlIsExtension(url?: string): boolean {
   if (!url) return true;
-  return url.includes('extension://') || url.includes('moz-extension://') || url.includes('chrome://') || url.includes('about:');
+  return url.includes('extension://') || url.includes('moz-extension://');
 }
 
 async function executeStepInActiveTab(step: WorkflowStep): Promise<{
@@ -232,14 +249,40 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
   requiresHitl?: boolean;
   hitlReason?: string;
 }> {
-  const activeTab = await findActiveWebTab();
+  // Navigation step: works from any tab (including newtab / about:blank / chrome://newtab)
+  if (step.action === 'navigate' && step.value) {
+    let targetTab = await getExecutionTab(true);
+    try {
+      if (targetTab?.id) {
+        await chrome.tabs.update(targetTab.id, { url: step.value, active: true });
+      } else {
+        targetTab = await chrome.tabs.create({ url: step.value, active: true });
+      }
 
-  if (activeTab?.id) {
-    if (step.action === 'navigate' && step.value) {
-      await chrome.tabs.update(activeTab.id, { url: step.value });
-      await new Promise((r) => setTimeout(r, 1500));
+      // Wait for navigation and DOM mount
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => resolve(), 4000);
+        if (!chrome.tabs.onUpdated || !targetTab?.id) return;
+        const targetId = targetTab.id;
+        const listener = (tabId: number, info: { status?: string }) => {
+          if (tabId === targetId && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener as any);
+            clearTimeout(timeout);
+            setTimeout(() => resolve(), 1200);
+          }
+        };
+        chrome.tabs.onUpdated.addListener(listener as any);
+      });
       return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Navigation failed' };
     }
+  }
+
+  const activeTab = await getExecutionTab(false);
+  if (!activeTab?.id) {
+    return { success: false, error: 'No active web page found to execute action on.' };
+  }
 
     try {
       const response = await chrome.tabs.sendMessage(activeTab.id, {
@@ -624,7 +667,6 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
         return { success: false, error: e.message || 'Scripting execution failed' };
       }
     }
-  }
 
   return await ActionExecutor.executeStep(step);
 }
