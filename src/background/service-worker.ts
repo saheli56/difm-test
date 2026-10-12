@@ -1,6 +1,7 @@
 import { AutomationManager } from '../core/scheduler/automation-manager';
 import { BackgroundTabOrchestrator } from '../core/scheduler/background-runner';
 import { ExtensionMessage } from '../core/types';
+import { ReminderService } from '../core/reminders/reminder-service';
 
 if (typeof chrome !== 'undefined') {
   if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
@@ -8,6 +9,7 @@ if (typeof chrome !== 'undefined') {
   }
 
   chrome.runtime.onInstalled.addListener(async () => {
+    // 1. Initialize automations alarms
     const automations = await AutomationManager.getAutomations();
     for (const auto of automations) {
       if (auto.enabled) {
@@ -18,9 +20,22 @@ if (typeof chrome !== 'undefined') {
         }
       }
     }
+
+    // 2. Schedule recurring reminder checks for bills & return windows
+    chrome.alarms.create('difm-reminders-checker', {
+      periodInMinutes: 15
+    });
+
+    // Run initial check
+    await ReminderService.checkAndDispatchReminders().catch(() => {});
   });
 
   chrome.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm.name === 'difm-reminders-checker') {
+      await ReminderService.checkAndDispatchReminders().catch(() => {});
+      return;
+    }
+
     if (alarm.name.startsWith('difm-auto-')) {
       const autoId = alarm.name.replace('difm-auto-', '');
       const automations = await AutomationManager.getAutomations();
@@ -31,6 +46,16 @@ if (typeof chrome !== 'undefined') {
       }
     }
   });
+
+  if (chrome.notifications) {
+    chrome.notifications.onClicked.addListener(() => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id && chrome.sidePanel && chrome.sidePanel.open) {
+          chrome.sidePanel.open({ tabId: tabs[0].id }).catch(() => {});
+        }
+      });
+    });
+  }
 
   if (chrome.commands) {
     chrome.commands.onCommand.addListener(async (command) => {

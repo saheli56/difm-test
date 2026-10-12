@@ -1,5 +1,8 @@
 import React, { useEffect } from 'react';
 import { Header } from '../components/Header';
+import { AttentionView } from '../components/AttentionView';
+import { BillsView } from '../components/BillsView';
+import { PurchasesView } from '../components/PurchasesView';
 import { TelemetryView } from '../components/TelemetryView';
 import { AutomationsView } from '../components/AutomationsView';
 import { VaultView } from '../components/VaultView';
@@ -17,6 +20,15 @@ export const App: React.FC = () => {
     <div className="h-full w-full flex flex-col bg-zinc-950 text-zinc-100 antialiased select-none overflow-hidden">
       <Header />
       <main className="flex-1 flex flex-col overflow-hidden relative bg-zinc-950">
+        <div className={`h-full w-full flex-col ${activeView === 'attention' ? 'flex' : 'hidden'}`}>
+          <AttentionView />
+        </div>
+        <div className={`h-full w-full flex-col ${activeView === 'bills' ? 'flex' : 'hidden'}`}>
+          <BillsView />
+        </div>
+        <div className={`h-full w-full flex-col ${activeView === 'purchases' ? 'flex' : 'hidden'}`}>
+          <PurchasesView />
+        </div>
         <div className={`h-full w-full flex-col ${activeView === 'telemetry' ? 'flex' : 'hidden'}`}>
           <TelemetryView />
         </div>

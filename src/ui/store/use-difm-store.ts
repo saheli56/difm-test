@@ -4,13 +4,36 @@ import { TaskPlanner } from '../../core/engine/planner';
 import { ActionExecutor } from '../../core/engine/executor';
 import { AutomationManager } from '../../core/scheduler/automation-manager';
 import { ContextVault } from '../../core/vault/context-vault';
+import { SavedBillRecord, SavedPurchaseRecord, SitePreferences } from '../../core/records/types';
+import { RecordStorage } from '../../core/records/storage';
+import { AttentionItem, ReminderService } from '../../core/reminders/reminder-service';
+import { BillPreparer } from '../../core/actions/bill-preparer';
+import { ReturnInitiator } from '../../core/actions/return-initiator';
+import { RecurrenceCalculator } from '../../core/detectors/recurrence-calculator';
+
+export type DIFMView = 'attention' | 'bills' | 'purchases' | 'telemetry' | 'automations' | 'vault' | 'settings';
 
 interface DIFMStore extends DIFMState {
-  activeView: 'telemetry' | 'automations' | 'vault' | 'settings';
+  activeView: DIFMView;
   activeTabInfo: { url: string; title: string; id?: number };
   isExecuting: boolean;
-  setActiveView: (view: 'telemetry' | 'automations' | 'vault' | 'settings') => void;
+  bills: SavedBillRecord[];
+  purchases: SavedPurchaseRecord[];
+  attentionItems: AttentionItem[];
+  sitePreferences: SitePreferences;
+  setActiveView: (view: DIFMView) => void;
   init: () => Promise<void>;
+  refreshAttentionItems: () => Promise<void>;
+  saveBill: (bill: SavedBillRecord) => Promise<void>;
+  deleteBill: (id: string) => Promise<void>;
+  markBillPaid: (id: string) => Promise<void>;
+  savePurchase: (purchase: SavedPurchaseRecord) => Promise<void>;
+  deletePurchase: (id: string) => Promise<void>;
+  markPurchaseStatus: (id: string, status: SavedPurchaseRecord['returnStatus']) => Promise<void>;
+  startBillPaymentWorkflow: (bill: SavedBillRecord) => Promise<void>;
+  startReturnWorkflow: (purchase: SavedPurchaseRecord) => Promise<void>;
+  blacklistSite: (domain: string) => Promise<void>;
+  removeBlacklistedSite: (domain: string) => Promise<void>;
   startWorkflow: (prompt: string) => Promise<void>;
   abortWorkflow: () => void;
   resumeHitl: (decision: string, userInput?: string) => Promise<void>;
@@ -27,7 +50,15 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
   currentWorkflow: null,
   automations: [],
   vault: [],
-  activeView: 'telemetry',
+  bills: [],
+  purchases: [],
+  attentionItems: [],
+  sitePreferences: {
+    blacklistedDomains: [],
+    dismissedCandidateKeys: {},
+    defaultReminderLeadDays: 3
+  },
+  activeView: 'attention',
   isExecuting: false,
   activeTabInfo: {
     url: 'https://example.com',
@@ -45,6 +76,10 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
   init: async () => {
     const automations = await AutomationManager.getAutomations();
     const vault = await ContextVault.getItems();
+    const bills = await RecordStorage.getBills();
+    const purchases = await RecordStorage.getPurchases();
+    const sitePreferences = await RecordStorage.getPreferences();
+    const attentionItems = await ReminderService.getAttentionItems();
 
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
       chrome.tabs.query({ active: true }, (tabs) => {
@@ -61,7 +96,93 @@ export const useDIFMStore = create<DIFMStore>((set, get) => ({
       });
     }
 
-    set({ automations, vault });
+    set({ automations, vault, bills, purchases, sitePreferences, attentionItems });
+  },
+
+  refreshAttentionItems: async () => {
+    const attentionItems = await ReminderService.getAttentionItems();
+    set({ attentionItems });
+  },
+
+  saveBill: async (bill: SavedBillRecord) => {
+    const updated = await RecordStorage.saveBill(bill);
+    const attentionItems = await ReminderService.getAttentionItems();
+    set({ bills: updated, attentionItems });
+  },
+
+  deleteBill: async (id: string) => {
+    const updated = await RecordStorage.deleteBill(id);
+    const attentionItems = await ReminderService.getAttentionItems();
+    set({ bills: updated, attentionItems });
+  },
+
+  markBillPaid: async (id: string) => {
+    const { bills } = get();
+    const target = bills.find((b) => b.id === id);
+    if (!target) return;
+
+    const todayIso = RecurrenceCalculator.getTodayIso();
+    const nextDue = RecurrenceCalculator.calculateNextDueDate(
+      todayIso,
+      target.recurrenceRule,
+      todayIso
+    );
+
+    const updated = await RecordStorage.saveBill({
+      ...target,
+      lastPaymentDate: todayIso,
+      nextEstimatedDueDate: nextDue,
+      isDueDateEstimated: !target.recurrenceRule.isConfirmedByUser,
+      status: 'active',
+      updatedAt: Date.now()
+    });
+
+    const attentionItems = await ReminderService.getAttentionItems();
+    set({ bills: updated, attentionItems });
+  },
+
+  savePurchase: async (purchase: SavedPurchaseRecord) => {
+    const updated = await RecordStorage.savePurchase(purchase);
+    const attentionItems = await ReminderService.getAttentionItems();
+    set({ purchases: updated, attentionItems });
+  },
+
+  deletePurchase: async (id: string) => {
+    const updated = await RecordStorage.deletePurchase(id);
+    const attentionItems = await ReminderService.getAttentionItems();
+    set({ purchases: updated, attentionItems });
+  },
+
+  markPurchaseStatus: async (id: string, status: SavedPurchaseRecord['returnStatus']) => {
+    const updated = await RecordStorage.updatePurchaseStatus(id, status);
+    const attentionItems = await ReminderService.getAttentionItems();
+    set({ purchases: updated, attentionItems });
+  },
+
+  startBillPaymentWorkflow: async (bill: SavedBillRecord) => {
+    set({ isExecuting: true, activeView: 'telemetry' });
+    const workflow = BillPreparer.buildBillPaymentWorkflow(bill);
+    workflow.status = 'running';
+    set({ currentWorkflow: { ...workflow } });
+    await executeWorkflowGraph(workflow, set, get);
+  },
+
+  startReturnWorkflow: async (purchase: SavedPurchaseRecord) => {
+    set({ isExecuting: true, activeView: 'telemetry' });
+    const workflow = ReturnInitiator.buildReturnWorkflow(purchase);
+    workflow.status = 'running';
+    set({ currentWorkflow: { ...workflow } });
+    await executeWorkflowGraph(workflow, set, get);
+  },
+
+  blacklistSite: async (domain: string) => {
+    const updated = await RecordStorage.blacklistDomain(domain);
+    set({ sitePreferences: updated });
+  },
+
+  removeBlacklistedSite: async (domain: string) => {
+    const updated = await RecordStorage.removeBlacklistedDomain(domain);
+    set({ sitePreferences: updated });
   },
 
   startWorkflow: async (prompt: string) => {

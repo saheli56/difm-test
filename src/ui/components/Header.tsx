@@ -4,27 +4,23 @@ import {
   ClockCountdown, 
   Vault, 
   GearSix, 
-  Globe, 
-  Circle 
+  Sparkle,
+  Receipt,
+  Package
 } from '@phosphor-icons/react';
-import { useDIFMStore } from '../store/use-difm-store';
+import { useDIFMStore, DIFMView } from '../store/use-difm-store';
 
 export const Header: React.FC = () => {
-  const { activeView, setActiveView, isExecuting, currentWorkflow, activeTabInfo } = useDIFMStore();
+  const { activeView, setActiveView, attentionItems } = useDIFMStore();
 
-  const getDomain = (url: string) => {
-    try {
-      return new URL(url).hostname;
-    } catch {
-      return 'Active Browser';
-    }
-  };
-
-  const navItems = [
-    { id: 'telemetry' as const, label: 'Agent', icon: Robot },
-    { id: 'automations' as const, label: 'Automations', icon: ClockCountdown },
-    { id: 'vault' as const, label: 'Vault', icon: Vault },
-    { id: 'settings' as const, label: 'Settings', icon: GearSix }
+  const navItems: Array<{ id: DIFMView; label: string; icon: any; badge?: number }> = [
+    { id: 'attention', label: 'Action', icon: Sparkle, badge: attentionItems.length },
+    { id: 'bills', label: 'Bills', icon: Receipt },
+    { id: 'purchases', label: 'Orders', icon: Package },
+    { id: 'telemetry', label: 'Agent', icon: Robot },
+    { id: 'automations', label: 'Macros', icon: ClockCountdown },
+    { id: 'vault', label: 'Vault', icon: Vault },
+    { id: 'settings', label: 'Settings', icon: GearSix }
   ];
 
   return (
@@ -35,41 +31,14 @@ export const Header: React.FC = () => {
             DF
           </div>
           <div className="flex flex-col">
-            <span className="text-xs font-semibold tracking-tight text-zinc-100 flex items-center gap-1.5">
+            <span className="text-xs font-semibold tracking-tight text-zinc-100">
               Do It For Me
-              <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800/70 border border-zinc-700/50 rounded text-zinc-400 font-medium">
-                v1.0
-              </span>
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-900/90 border border-zinc-800 text-[11px] text-zinc-300 font-medium max-w-[150px] truncate">
-            <Globe size={13} className="text-zinc-500 shrink-0" weight="bold" />
-            <span className="truncate">{getDomain(activeTabInfo.url)}</span>
-          </div>
-
-          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-900/90 border border-zinc-800 text-[11px] font-medium">
-            <Circle 
-              size={8} 
-              weight="fill" 
-              className={
-                isExecuting 
-                  ? 'text-amber-400 animate-pulse' 
-                  : currentWorkflow?.status === 'paused_hitl' 
-                  ? 'text-rose-400 animate-ping' 
-                  : 'text-emerald-400'
-              } 
-            />
-            <span className="text-zinc-300 capitalize text-[10px] font-medium">
-              {currentWorkflow?.status === 'paused_hitl' ? 'HITL Pause' : isExecuting ? 'Running' : 'Ready'}
             </span>
           </div>
         </div>
       </div>
 
-      <nav className="flex items-center gap-1 p-0.5 bg-zinc-900/80 border border-zinc-800/60 rounded-lg">
+      <nav className="flex items-center gap-1 p-0.5 bg-zinc-900/80 border border-zinc-800/60 rounded-lg overflow-x-auto no-scrollbar">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.id;
@@ -77,14 +46,19 @@ export const Header: React.FC = () => {
             <button
               key={item.id}
               onClick={() => setActiveView(item.id)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
+              className={`shrink-0 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-md text-xs font-medium transition-all relative ${
                 isActive
                   ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/50'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'
               }`}
             >
-              <Icon size={14} weight={isActive ? 'fill' : 'regular'} />
+              <Icon size={13} weight={isActive ? 'fill' : 'regular'} />
               <span>{item.label}</span>
+              {item.badge !== undefined && item.badge > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500 text-zinc-950">
+                  {item.badge}
+                </span>
+              )}
             </button>
           );
         })}

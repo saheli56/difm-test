@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CESC Limited - Online Payment Receipt</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f3f4f6;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .receipt-card {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 480px;
+      padding: 32px;
+      border-top: 6px solid #10b981;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ecfdf5;
+      color: #059669;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0 0 4px;
+      color: #111827;
+    }
+    p.sub {
+      color: #6b7280;
+      font-size: 13px;
+      margin: 0 0 24px;
+    }
+    .amount-box {
+      background: #f9fafb;
+      border: 1px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .amount-label {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .amount-val {
+      font-size: 28px;
+      font-weight: 700;
+      color: #10b981;
+      margin-top: 4px;
+    }
+    .details-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .details-table td {
+      padding: 10px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .details-table td.label {
+      color: #6b7280;
+    }
+    .details-table td.value {
+      text-align: right;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .footer-note {
+      margin-top: 24px;
+      font-size: 12px;
+      color: #9ca3af;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt-card">
+    <div class="status-badge">✓ Payment Successful</div>
+    <h1>Receipt of Payment</h1>
+    <p class="sub">Calcutta Electric Supply Corporation (CESC) Limited</p>
+
+    <div class="amount-box">
+      <div class="amount-label">Total Amount Paid</div>
+      <div class="amount-val">₹1,450.00</div>
+    </div>
+
+    <table class="details-table">
+      <tr>
+        <td class="label">Transaction Reference ID</td>
+        <td class="value">CESC-TXN-20261012-8829</td>
+      </tr>
+      <tr>
+        <td class="label">Bill Category</td>
+        <td class="value">Electricity Bill</td>
+      </tr>
+      <tr>
+        <td class="label">Consumer Number</td>
+        <td class="value">01029384912</td>
+      </tr>
+      <tr>
+        <td class="label">Payment Date</td>
+        <td class="value">October 12, 2026</td>
+      </tr>
+      <tr>
+        <td class="label">Payment Mode</td>
+        <td class="value">UPI / NetBanking</td>
+      </tr>
+      <tr>
+        <td class="label">Billing Cycle</td>
+        <td class="value">Monthly (1 Month)</td>
+      </tr>
+    </table>
+
+    <div class="footer-note">
+      Thank you for your payment. Next bill statement will be issued approximately next month.
+    </div>
+  </div>
+</body>
+</html>

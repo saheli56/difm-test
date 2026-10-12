@@ -1,17 +1,60 @@
 import { DeepSemanticCrawler } from '../core/ax-tree/deep-crawler';
 import { ActionExecutor } from '../core/engine/executor';
 import { VisualMacroRecorder } from './recorder';
+import { SaveCoordinator } from '../core/detectors/save-coordinator';
+import { SavePromptUI } from './save-prompt-ui';
 
 class DIFMContentScript {
   private static instance: DIFMContentScript;
   private shadowHost: HTMLElement | null = null;
   private isHudVisible = false;
+  private detectionTimeout: any = null;
 
   public static init() {
     if (!this.instance) {
       this.instance = new DIFMContentScript();
       this.instance.setupMessageListeners();
       this.instance.setupKeyboardShortcuts();
+      this.instance.setupContextualDetection();
+    }
+  }
+
+  private setupContextualDetection() {
+    // Initial page load check after settling
+    this.scheduleDetection(1500);
+
+    // Single-page application route transitions
+    window.addEventListener('popstate', () => this.scheduleDetection(1000));
+    window.addEventListener('hashchange', () => this.scheduleDetection(1000));
+  }
+
+  private scheduleDetection(delayMs: number = 1000) {
+    if (this.detectionTimeout) {
+      clearTimeout(this.detectionTimeout);
+    }
+    this.detectionTimeout = setTimeout(() => {
+      this.runContextualDetection();
+    }, delayMs);
+  }
+
+  private async runContextualDetection() {
+    try {
+      const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, [role="heading"]'))
+        .map((el) => (el as HTMLElement).innerText?.trim() || '')
+        .filter((text) => text.length > 0);
+
+      const candidate = await SaveCoordinator.inspectPageForOpportunities({
+        url: window.location.href,
+        title: document.title,
+        text: document.body?.innerText || '',
+        headings
+      });
+
+      if (candidate) {
+        SavePromptUI.showPrompt(candidate);
+      }
+    } catch {
+      // Safe error boundary
     }
   }
 
@@ -55,6 +98,13 @@ class DIFMContentScript {
         case 'DIFM_STOP_RECORDER': {
           const steps = VisualMacroRecorder.stopRecording();
           sendResponse({ recording: false, steps });
+          return true;
+        }
+
+        case 'DIFM_TRIGGER_DETECTION_CHECK': {
+          this.runContextualDetection().then(() => {
+            sendResponse({ completed: true });
+          });
           return true;
         }
       }

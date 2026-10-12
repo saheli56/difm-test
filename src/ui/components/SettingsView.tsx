@@ -14,16 +14,32 @@ import {
 } from '@phosphor-icons/react';
 import { useDIFMStore } from '../store/use-difm-store';
 
+import { Prohibit, Trash } from '@phosphor-icons/react';
+
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings, automations, vault } = useDIFMStore();
+  const { 
+    settings, 
+    updateSettings, 
+    automations, 
+    vault, 
+    bills, 
+    purchases, 
+    sitePreferences, 
+    blacklistSite, 
+    removeBlacklistedSite 
+  } = useDIFMStore();
   const [webhookUrl, setWebhookUrl] = useState(settings.webhookUrl || '');
   const [isRecording, setIsRecording] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [newDomain, setNewDomain] = useState('');
 
   const handleExportData = () => {
     const backup = {
+      bills,
+      purchases,
       automations,
       vault,
+      sitePreferences,
       settings,
       version: '1.0.0',
       exportedAt: new Date().toISOString()
@@ -188,6 +204,60 @@ export const SettingsView: React.FC = () => {
         <span className="text-[10px] text-zinc-500">
           DIFM dispatches background task results and price drop triggers to this webhook.
         </span>
+      </div>
+
+      {/* Site Prompt Preferences & Blacklist */}
+      <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-3 flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-zinc-200">
+          <Prohibit size={15} className="text-rose-400" />
+          <span className="text-xs font-semibold">Prompt Blacklist ("Never for this site")</span>
+        </div>
+        <p className="text-[10px] text-zinc-500">
+          Sites where DIFM contextual save prompts are suppressed.
+        </p>
+
+        <div className="flex gap-1.5 pt-1">
+          <input
+            type="text"
+            placeholder="e.g. somestore.com"
+            value={newDomain}
+            onChange={(e) => setNewDomain(e.target.value)}
+            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-xs text-zinc-100 outline-none focus:border-zinc-700"
+          />
+          <button
+            onClick={() => {
+              if (newDomain.trim()) {
+                blacklistSite(newDomain.trim());
+                setNewDomain('');
+              }
+            }}
+            className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs rounded font-medium"
+          >
+            Add
+          </button>
+        </div>
+
+        {sitePreferences.blacklistedDomains.length === 0 ? (
+          <span className="text-[11px] text-zinc-600 italic py-1">No sites currently blacklisted.</span>
+        ) : (
+          <div className="flex flex-col gap-1 max-h-28 overflow-y-auto pt-1">
+            {sitePreferences.blacklistedDomains.map((domain) => (
+              <div
+                key={domain}
+                className="flex items-center justify-between px-2 py-1 bg-zinc-950 border border-zinc-850 rounded text-xs text-zinc-300"
+              >
+                <span>{domain}</span>
+                <button
+                  onClick={() => removeBlacklistedSite(domain)}
+                  title="Remove from blacklist"
+                  className="text-zinc-500 hover:text-rose-400"
+                >
+                  <Trash size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Data Backup */}

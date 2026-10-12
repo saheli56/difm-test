@@ -4,14 +4,22 @@ import {
   SidebarSimple, 
   ClockCountdown, 
   Play, 
-  Sparkle,
-  Circle
+  Sparkle
 } from '@phosphor-icons/react';
 import { useDIFMStore } from '../store/use-difm-store';
 
 export const App: React.FC = () => {
   const [prompt, setPrompt] = useState('');
-  const { automations, init, startWorkflow, isExecuting, currentWorkflow } = useDIFMStore();
+  const { 
+    automations, 
+    init, 
+    startWorkflow, 
+    isExecuting, 
+    currentWorkflow, 
+    attentionItems, 
+    startBillPaymentWorkflow, 
+    startReturnWorkflow 
+  } = useDIFMStore();
 
   useEffect(() => {
     init();
@@ -55,20 +63,13 @@ export const App: React.FC = () => {
           <span className="text-xs font-semibold text-zinc-100">Do It For Me</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-[10px] font-medium text-zinc-400">
-            <Circle size={7} weight="fill" className={isExecuting ? 'text-amber-400 animate-pulse' : 'text-emerald-400'} />
-            <span>{isExecuting ? 'Busy' : 'Ready'}</span>
-          </div>
-
-          <button
-            onClick={openSidePanel}
-            title="Open Side Panel"
-            className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded transition-colors"
-          >
-            <SidebarSimple size={15} />
-          </button>
-        </div>
+        <button
+          onClick={openSidePanel}
+          title="Open Side Panel"
+          className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded transition-colors"
+        >
+          <SidebarSimple size={15} />
+        </button>
       </div>
 
       <form onSubmit={handleRun} className="flex flex-col gap-2">
@@ -109,11 +110,53 @@ export const App: React.FC = () => {
         </div>
       )}
 
+      {/* Attention Items Priority */}
+      {attentionItems.length > 0 && (
+        <div className="flex flex-col gap-1.5 bg-zinc-900/60 border border-zinc-800 rounded-lg p-2">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-300">
+            <span className="flex items-center gap-1 text-emerald-400">
+              <Sparkle size={12} weight="fill" />
+              <span>Needs Attention ({attentionItems.length})</span>
+            </span>
+            <button onClick={openSidePanel} className="text-[10px] text-zinc-500 hover:text-zinc-300">
+              Open Panel
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            {attentionItems.slice(0, 2).map((item) => (
+              <div
+                key={item.id}
+                className="p-1.5 rounded bg-zinc-950/80 border border-zinc-800/80 flex items-center justify-between gap-1 text-xs"
+              >
+                <div className="flex flex-col min-w-0 pr-1">
+                  <span className="font-medium text-zinc-200 truncate text-[11px]">{item.title}</span>
+                  <span className="text-[10px] text-zinc-400">{item.subtitle}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    openSidePanel();
+                    if (item.type === 'bill') {
+                      startBillPaymentWorkflow(item.item as any);
+                    } else {
+                      startReturnWorkflow(item.item as any);
+                    }
+                  }}
+                  className="px-2 py-1 bg-zinc-100 hover:bg-white text-zinc-950 text-[10px] font-bold rounded shrink-0 transition-colors"
+                >
+                  {item.actionLabel}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2 flex-1 overflow-hidden">
         <div className="flex items-center justify-between text-xs font-semibold text-zinc-300">
           <div className="flex items-center gap-1.5">
             <ClockCountdown size={14} className="text-zinc-500" />
-            <span>Quick Automations</span>
+            <span>Recurring Automations</span>
           </div>
           <button onClick={openSidePanel} className="text-[10px] text-zinc-500 hover:text-zinc-300 font-normal">
             View all
