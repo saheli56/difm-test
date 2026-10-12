@@ -22,6 +22,11 @@ export class DomainResolver {
       matchers: ['flipkart']
     },
     {
+      domain: 'myntra.com',
+      defaultUrl: 'https://www.myntra.com',
+      matchers: ['myntra', 'myntra.com']
+    },
+    {
       domain: 'swiggy.com',
       defaultUrl: 'https://www.swiggy.com',
       matchers: ['swiggy']
