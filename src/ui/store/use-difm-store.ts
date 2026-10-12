@@ -383,18 +383,19 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
 
             // === UNIVERSAL CLICK ROUTER ===
             if (s.action === 'click') {
-              // 1. First / Top Product Link in Search Results (Universal for Amazon, Flipkart, eBay, Walmart, etc.)
+              // 1. First / Top Product Link in Search Results (Universal for Amazon, Flipkart, Myntra, eBay, Walmart, etc.)
               if (s.targetSemanticName === 'first_product' || s.description?.toLowerCase().includes('open top matching')) {
-                const searchArea = document.querySelector('[data-component-type="s-search-results"], .s-result-list, [role="main"], main, ._1YokD2') || document.body;
+                const searchArea = document.querySelector('[data-component-type="s-search-results"], .s-result-list, [role="main"], main, ._1YokD2, .results-base, [class*="results-base" i], [class*="search-products" i]') || document.body;
                 const allAnchors = Array.from(searchArea.querySelectorAll('a[href]')) as HTMLAnchorElement[];
 
                 for (const a of allAnchors) {
                   if (a.offsetParent === null) continue;
-                  if (a.closest('header, nav, #navbar, #nav-main, #nav-subnav, #leftNav, #s-refinements, [role="navigation"], ._1dqAae')) continue;
+                  if (a.closest('header, nav, #navbar, #nav-main, #nav-subnav, #leftNav, #s-refinements, [role="navigation"], ._1dqAae, .nav-desktop, .filter-container')) continue;
 
                   const href = a.href.toLowerCase();
                   if (
                     href.includes('cart') ||
+                    href.includes('checkout') ||
                     href.includes('account') ||
                     href.includes('help') ||
                     href.includes('login') ||
@@ -415,13 +416,16 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
                     href.includes('/p/') ||
                     href.includes('/product/') ||
                     href.includes('/item/') ||
-                    href.includes('/itm/');
+                    href.includes('/itm/') ||
+                    href.includes('/buy') ||
+                    href.includes('/pdp/') ||
+                    /\/[0-9]{5,}\b/.test(href);
 
                   const isInsideProductCard = !!a.closest(
-                    '[data-component-type="s-search-result"], [data-asin]:not([data-asin=""]), [data-id], ._1AtVbE, ._13oc-S, ._2kHMtA, ._1xHGtK, .product-card, .search-result'
+                    '[data-component-type="s-search-result"], [data-asin]:not([data-asin=""]), [data-id], ._1AtVbE, ._13oc-S, ._2kHMtA, ._1xHGtK, .product-card, .search-result, .product-base, [class*="product-base" i], [class*="productCard" i], [class*="product-card" i], ul.results-base li, [data-testid*="product" i]'
                   );
 
-                  const hasHeading = !!a.querySelector('h1, h2, h3, h4, [class*="title" i]') || !!a.closest('h1, h2, h3, h4');
+                  const hasHeading = !!a.querySelector('h1, h2, h3, h4, [class*="title" i], [class*="product-product" i], [class*="product-brand" i]') || !!a.closest('h1, h2, h3, h4');
 
                   if ((isProductPattern && (isInsideProductCard || hasHeading)) || (isInsideProductCard && (hasHeading || a.querySelector('img')))) {
                     a.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -429,6 +433,29 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
                     return { success: true, navigated: true };
                   }
                 }
+
+                // Fallback pass: any prominent visible product card link with image below header
+                for (const a of allAnchors) {
+                  if (a.offsetParent === null) continue;
+                  const rect = a.getBoundingClientRect();
+                  if (rect.top < 80 || rect.width < 50 || rect.height < 50) continue;
+                  if (a.closest('header, nav, [role="navigation"], footer')) continue;
+                  const href = a.href.toLowerCase();
+                  if (href.includes('login') || href.includes('cart') || href.includes('account')) continue;
+
+                  const hasImg = !!a.querySelector('img');
+                  const hasText = (a.innerText || '').trim().length > 5;
+                  if (hasImg && hasText) {
+                    a.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    window.location.href = a.href;
+                    return { success: true, navigated: true };
+                  }
+                }
+
+                return {
+                  success: false,
+                  error: 'Could not locate top product link in search results.'
+                };
               }
 
               // 2. Open Cart / View Basket Navigation
@@ -469,6 +496,10 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
                   window.location.href = 'https://www.amazon.in/gp/cart/view.html';
                   return { success: true, navigated: true };
                 }
+                if (window.location.hostname.includes('myntra')) {
+                  window.location.href = 'https://www.myntra.com/checkout/cart';
+                  return { success: true, navigated: true };
+                }
               }
 
               // 3. Add to Cart / Buy Now Action
@@ -481,15 +512,27 @@ async function executeStepInActiveTab(step: WorkflowStep): Promise<{
                   return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
                 };
 
+                // Auto select first available size for apparel/footwear if present (e.g. Myntra, Ajio)
+                const sizeBtn = document.querySelector(
+                  '.size-buttons-size-button:not([class*="disabled"]), .size-buttons-unified-size:not([class*="disabled"]), [class*="sizeButton"]:not([disabled]), button[class*="size"]:not([disabled])'
+                ) as HTMLElement | null;
+                if (sizeBtn && isElVisible(sizeBtn)) {
+                  sizeBtn.click();
+                }
+
                 const allElements = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a, [role="button"], div, span')) as HTMLElement[];
                 let cartBtn: HTMLElement | null = null;
 
-                // Priority 0: Standard Buybox button IDs & platform classes (Amazon, Flipkart, Shopify)
+                // Priority 0: Standard Buybox button IDs & platform classes (Amazon, Flipkart, Myntra, Shopify)
                 const primaryBuyboxSelectors = [
                   '#add-to-cart-button',
                   'input#add-to-cart-button',
                   'input[name="submit.add-to-cart"]',
                   'button[name="submit.add-to-cart"]',
+                  '.pdp-add-to-bag',
+                  '.pdp-button.pdp-add-to-bag',
+                  '[class*="pdp-add-to-bag" i]',
+                  '[class*="add-to-bag" i]',
                   'button._2KpZ6l._2U9uOA._3v1-ww', // Flipkart classic add to cart
                   'button._2KpZ6l._2U9uOA',
                   'button[aria-label*="add to cart" i]',
